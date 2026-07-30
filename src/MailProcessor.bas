@@ -1,7 +1,7 @@
 Attribute VB_Name = "MailProcessor"
 '==============================================================================
 ' MailProcessor
-' Central entry points for startup scans and per-message processing.
+' Central entry points for startup scans, on-demand runs, and per-item processing.
 ' Rules live in MailRules; folder utilities live in FolderHelpers.
 '==============================================================================
 Option Explicit
@@ -29,28 +29,46 @@ Public Sub Shutdown()
 End Sub
 
 '------------------------------------------------------------------------------
-' Startup: optionally scan the Inbox for items that still need processing
+' On-demand: run all filters against every Inbox item
+' Call from the Immediate Window, a button, or a custom ribbon control:
+'   MailProcessor.RunInboxFilters
+'------------------------------------------------------------------------------
+
+Public Sub RunInboxFilters()
+    Dim items As Outlook.Items
+    Dim i As Long
+
+    If Not m_Initialized Then Initialize
+
+    Set items = m_Inbox.Items
+    items.Sort "[ReceivedTime]", True
+
+    Logger.Log "Manual inbox run: " & items.Count & " item(s)."
+
+    For i = items.Count To 1 Step -1
+        ProcessOutlookItem items(i)
+    Next i
+
+    Logger.Log "Manual inbox run complete."
+End Sub
+
+'------------------------------------------------------------------------------
+' Startup: scan unread Inbox items
 '------------------------------------------------------------------------------
 
 Public Sub ProcessInboxOnStartup()
     Dim items As Outlook.Items
     Dim i As Long
-    Dim mail As Outlook.MailItem
 
     If Not m_Initialized Then Initialize
 
-    ' Restrict to unread mail to keep startup light. Expand later if needed.
-    Set items = m_Inbox.items.Restrict("[Unread] = true")
+    Set items = m_Inbox.Items.Restrict("[Unread] = true")
     items.Sort "[ReceivedTime]", True
 
     Logger.Log "Startup scan: " & items.Count & " unread item(s)."
 
-    ' Walk backwards so moves/deletes do not skip items.
     For i = items.Count To 1 Step -1
-        If TypeOf items(i) Is Outlook.MailItem Then
-            Set mail = items(i)
-            ProcessMailItem mail
-        End If
+        ProcessOutlookItem items(i)
     Next i
 End Sub
 
@@ -77,54 +95,65 @@ Public Sub ProcessNewMail(ByVal EntryIDCollection As String)
         On Error GoTo 0
 
         If Not item Is Nothing Then
-            If TypeOf item Is Outlook.MailItem Then
-                ProcessMailItem item
-            End If
+            ProcessOutlookItem item
         End If
     Next i
 End Sub
 
 '------------------------------------------------------------------------------
-' Single-message pipeline — evaluate rules in priority order
+' Single-item pipeline — mail and meeting responses
 '------------------------------------------------------------------------------
 
 Public Sub ProcessMailItem(ByRef mail As Outlook.MailItem)
+    ProcessOutlookItem mail
+End Sub
+
+Public Sub ProcessOutlookItem(ByRef item As Object)
     Dim action As MailAction
     Dim targetFolder As Outlook.Folder
 
-    If mail Is Nothing Then Exit Sub
+    If item Is Nothing Then Exit Sub
 
-    action = MailRules.Evaluate(mail)
+    action = MailRules.EvaluateItem(item)
 
     Select Case action.ActionType
         Case maNone
-            ' No matching rule — leave the message alone.
+            ' No matching rule — leave the item alone.
 
         Case maMarkRead
-            mail.UnRead = False
-            mail.Save
-            Logger.Log "Marked read: " & mail.Subject
+            item.UnRead = False
+            item.Save
+            Logger.Log "Marked read: " & ItemSubject(item)
 
         Case maMove
             Set targetFolder = FolderHelpers.GetOrCreateFolder(action.FolderPath)
             If Not targetFolder Is Nothing Then
-                mail.Move targetFolder
-                Logger.Log "Moved to [" & action.FolderPath & "]: " & mail.Subject
+                item.Move targetFolder
+                Logger.Log "Moved to [" & action.FolderPath & "]: " & ItemSubject(item)
             End If
 
         Case maDelete
-            ' Soft-delete: moves to Deleted Items. Use mail.Delete after
-            ' PermanentDelete if hard-delete is required later.
-            mail.Delete
-            Logger.Log "Deleted: " & mail.Subject
+            item.Delete
+            Logger.Log "Deleted: " & ItemSubject(item)
 
         Case maMarkReadAndMove
-            mail.UnRead = False
-            mail.Save
+            item.UnRead = False
+            item.Save
             Set targetFolder = FolderHelpers.GetOrCreateFolder(action.FolderPath)
             If Not targetFolder Is Nothing Then
-                mail.Move targetFolder
-                Logger.Log "Marked read & moved to [" & action.FolderPath & "]: " & mail.Subject
+                item.Move targetFolder
+                Logger.Log "Marked read & moved to [" & action.FolderPath & "]: " & ItemSubject(item)
             End If
+
+        Case maFlag
+            item.FlagStatus = olFlagMarked
+            item.FlagRequest = "Follow up"
+            item.Save
+            Logger.Log "Flagged: " & ItemSubject(item)
     End Select
 End Sub
+
+Private Function ItemSubject(ByRef item As Object) As String
+    On Error Resume Next
+    ItemSubject = item.Subject
+End Function

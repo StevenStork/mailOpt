@@ -8,7 +8,7 @@ Attribute VB_Name = "MailRules"
 Option Explicit
 
 '------------------------------------------------------------------------------
-' Action types returned by Evaluate
+' Action types returned by Evaluate / EvaluateItem
 '------------------------------------------------------------------------------
 
 Public Enum MailActionType
@@ -17,6 +17,7 @@ Public Enum MailActionType
     maMove = 2
     maDelete = 3
     maMarkReadAndMove = 4
+    maFlag = 5
 End Enum
 
 Public Type MailAction
@@ -24,6 +25,10 @@ Public Type MailAction
     FolderPath As String   ' Used by maMove / maMarkReadAndMove (e.g. "Newsletters")
     RuleName As String     ' For logging / debugging
 End Type
+
+Private Const MSG_MEETING_ACCEPTED As String = "IPM.Schedule.Meeting.Resp.Pos"
+Private Const MSG_MEETING_TENTATIVE As String = "IPM.Schedule.Meeting.Resp.Tent"
+Private Const MSG_MEETING_DECLINED As String = "IPM.Schedule.Meeting.Resp.Neg"
 
 '------------------------------------------------------------------------------
 ' Load / refresh rule configuration
@@ -33,6 +38,61 @@ End Type
 Public Sub LoadRules()
     Logger.Log "MailRules loaded."
 End Sub
+
+'------------------------------------------------------------------------------
+' Evaluate any Outlook item (mail, meeting response, etc.)
+' Meeting-response rules run first; remaining mail uses Evaluate.
+'------------------------------------------------------------------------------
+
+Public Function EvaluateItem(ByRef item As Object) As MailAction
+    Dim result As MailAction
+    Dim msgClass As String
+
+    result.ActionType = maNone
+    result.FolderPath = vbNullString
+    result.RuleName = vbNullString
+
+    If item Is Nothing Then
+        EvaluateItem = result
+        Exit Function
+    End If
+
+    On Error Resume Next
+    msgClass = item.MessageClass
+    On Error GoTo 0
+
+    Select Case StrComp(msgClass, MSG_MEETING_ACCEPTED, vbTextCompare)
+        Case 0
+            result.ActionType = maMarkReadAndMove
+            result.FolderPath = "Accepted Invites"
+            result.RuleName = "MeetingAccepted"
+            EvaluateItem = result
+            Exit Function
+    End Select
+
+    Select Case StrComp(msgClass, MSG_MEETING_TENTATIVE, vbTextCompare)
+        Case 0
+            result.ActionType = maMove
+            result.FolderPath = "Tentative Invites"
+            result.RuleName = "MeetingTentative"
+            EvaluateItem = result
+            Exit Function
+    End Select
+
+    Select Case StrComp(msgClass, MSG_MEETING_DECLINED, vbTextCompare)
+        Case 0
+            result.ActionType = maFlag
+            result.RuleName = "MeetingDeclined"
+            EvaluateItem = result
+            Exit Function
+    End Select
+
+    If TypeOf item Is Outlook.MailItem Then
+        EvaluateItem = Evaluate(item)
+    Else
+        EvaluateItem = result
+    End If
+End Function
 
 '------------------------------------------------------------------------------
 ' Evaluate a mail item against rules in priority order.
