@@ -2,9 +2,10 @@ Attribute VB_Name = "FolderHelpers"
 '==============================================================================
 ' FolderHelpers
 ' Resolve and create mail folders under the default store / Inbox.
-' Folder paths use backslash separators relative to the Inbox, e.g.:
-'   "Newsletters"
-'   "Projects\Alpha"
+' Folder paths use backslash separators:
+'   "Newsletters"              → under Inbox
+'   "Projects\Alpha"           → nested under Inbox
+'   "\\BAE Comms\ES Comms"     → under mailbox root (sibling of Inbox)
 '==============================================================================
 Option Explicit
 
@@ -71,7 +72,14 @@ Public Function FolderExists(ByVal folderPath As String) As Boolean
     If Len(Trim$(folderPath)) = 0 Then Exit Function
 
     folderPath = Replace(folderPath, "/", "\")
-    Set parent = GetDefaultInbox()
+
+    If Left$(folderPath, 2) = "\\" Then
+        Set parent = Application.GetNamespace("MAPI").GetDefaultFolder(olFolderInbox).Parent
+        folderPath = Mid$(folderPath, 3)
+    Else
+        Set parent = GetDefaultInbox()
+    End If
+
     parts = Split(folderPath, "\")
 
     For i = LBound(parts) To UBound(parts)
