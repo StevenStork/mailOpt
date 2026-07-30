@@ -155,7 +155,14 @@ Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPat
     folderPath = vbNullString
     MatchesMoveRule = False
 
-    ' ServiceNow notifications — match sender address prefix (not body URLs).
+    ' ES Comms — username ceo.inc, or sender host prefix communications.es.
+    If SenderUserNameIs(mail, "ceo.inc") Or SenderStartsWith(mail, "communications.es") Then
+        folderPath = "ES Comms"
+        MatchesMoveRule = True
+        Exit Function
+    End If
+
+    ' ServiceNow notifications — match sender host prefix (not body URLs).
     If SenderStartsWith(mail, "servicenow.us") Then
         folderPath = "IT Tickets"
         MatchesMoveRule = True
@@ -179,6 +186,26 @@ Public Function SenderContains(ByRef mail As Outlook.MailItem, ByVal needle As S
     Dim addr As String
     addr = SenderAddress(mail)
     SenderContains = (InStr(1, addr, needle, vbTextCompare) > 0)
+End Function
+
+' True when the local part (before @) equals `userName` (case-insensitive).
+Public Function SenderUserNameIs(ByRef mail As Outlook.MailItem, ByVal userName As String) As Boolean
+    Dim addr As String
+    Dim atPos As Long
+    Dim localPart As String
+
+    addr = Trim$(SenderAddress(mail))
+    userName = Trim$(userName)
+    If Len(addr) = 0 Or Len(userName) = 0 Then Exit Function
+
+    atPos = InStr(1, addr, "@")
+    If atPos = 0 Then
+        localPart = addr
+    Else
+        localPart = Left$(addr, atPos - 1)
+    End If
+
+    SenderUserNameIs = (StrComp(localPart, userName, vbTextCompare) = 0)
 End Function
 
 ' True when the sender host (after @) starts with `prefix` (case-insensitive).

@@ -38,7 +38,7 @@ Edit matchers / `EvaluateItem` in `MailRules.bas`:
 - `MatchesMarkReadRule` — return `True` to mark unread mail as read
 - Meeting responses and other item types can be handled in `EvaluateItem`
 
-Helpers: `SenderStartsWith`, `SenderContains`, `SubjectContains`, `SenderAddress`.
+Helpers: `SenderUserNameIs`, `SenderStartsWith`, `SenderContains`, `SubjectContains`, `SenderAddress`.
 
 ## Run filters on demand
 
