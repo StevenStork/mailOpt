@@ -157,14 +157,14 @@ Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPat
 
     ' ES Comms — username ceo.inc, or sender host prefix communications.es.
     If SenderUserNameIs(mail, "ceo.inc") Or SenderStartsWith(mail, "communications.es") Then
-        folderPath = "ES Comms"
+        folderPath = "\\BAE Comms\ES Comms"
         MatchesMoveRule = True
         Exit Function
     End If
 
     ' ServiceNow notifications — match sender host prefix (not body URLs).
     If SenderStartsWith(mail, "servicenow.us") Then
-        folderPath = "IT Tickets"
+        folderPath = "\\Tickets\IT Tickets"
         MatchesMoveRule = True
         Exit Function
     End If
