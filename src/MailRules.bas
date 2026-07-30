@@ -3,8 +3,7 @@ Attribute VB_Name = "MailRules"
 ' MailRules
 ' Define and evaluate filtering rules.
 '
-' Framework only: stub matchers are intentionally empty / always-false so
-' nothing is moved, marked read, or deleted until you add real conditions.
+' Matchers start conservative: only explicitly coded rules take action.
 '==============================================================================
 Option Explicit
 
@@ -32,7 +31,7 @@ End Type
 '------------------------------------------------------------------------------
 
 Public Sub LoadRules()
-    Logger.Log "MailRules loaded (stub — add real rules in Evaluate)."
+    Logger.Log "MailRules loaded."
 End Sub
 
 '------------------------------------------------------------------------------
@@ -93,14 +92,15 @@ Private Function MatchesDeleteRule(ByRef mail As Outlook.MailItem) As Boolean
 End Function
 
 Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPath As String) As Boolean
-    ' Example (disabled):
-    ' If InStr(1, LCase$(mail.Subject), "[newsletter]", vbTextCompare) > 0 Then
-    '     folderPath = "Newsletters"
-    '     MatchesMoveRule = True
-    '     Exit Function
-    ' End If
     folderPath = vbNullString
     MatchesMoveRule = False
+
+    ' ServiceNow notifications — match sender domain only (not body URLs).
+    If SenderDomainMatches(mail, "servicenow.us") Then
+        folderPath = "IT Tickets"
+        MatchesMoveRule = True
+        Exit Function
+    End If
 End Function
 
 Private Function MatchesMarkReadRule(ByRef mail As Outlook.MailItem) As Boolean
@@ -119,6 +119,25 @@ Public Function SenderContains(ByRef mail As Outlook.MailItem, ByVal needle As S
     Dim addr As String
     addr = SenderAddress(mail)
     SenderContains = (InStr(1, addr, needle, vbTextCompare) > 0)
+End Function
+
+' True when the SMTP domain equals `domain` or is a subdomain of it
+' (e.g. "mail.servicenow.us" matches "servicenow.us"). Ignores body URLs.
+Public Function SenderDomainMatches(ByRef mail As Outlook.MailItem, ByVal domain As String) As Boolean
+    Dim addr As String
+    Dim atPos As Long
+    Dim senderDomain As String
+
+    addr = LCase$(Trim$(SenderAddress(mail)))
+    domain = LCase$(Trim$(domain))
+    If Len(addr) = 0 Or Len(domain) = 0 Then Exit Function
+
+    atPos = InStrRev(addr, "@")
+    If atPos = 0 Then Exit Function
+
+    senderDomain = Mid$(addr, atPos + 1)
+    SenderDomainMatches = (senderDomain = domain) Or _
+        (Len(senderDomain) > Len(domain) And Right$(senderDomain, Len(domain) + 1) = "." & domain)
 End Function
 
 Public Function SubjectContains(ByRef mail As Outlook.MailItem, ByVal needle As String) As Boolean
