@@ -28,14 +28,6 @@ Flow:
 5. Save the VBA project (`Ctrl+S`). Restart Outlook.
 6. Confirm in the Immediate Window (`Ctrl+G`) that you see: `Outlook started — mail framework initialized.`
 
-## Active rules
-
-| Condition | Action |
-|---|---|
-| Sender domain is `servicenow.us` (or a subdomain) | Move to `IT Tickets` |
-
-Domain matching uses the SMTP address only — body URLs are ignored. The folder is created under Inbox if missing.
-
 ## Adding rules
 
 Edit the private matchers in `MailRules.bas`:
@@ -44,7 +36,7 @@ Edit the private matchers in `MailRules.bas`:
 - `MatchesMoveRule` — set `folderPath` and return `True`
 - `MatchesMarkReadRule` — return `True` to mark unread mail as read
 
-Helpers: `SenderDomainMatches`, `SenderContains`, `SubjectContains`, `SenderAddress`.
+Helpers: `SenderStartsWith`, `SenderContains`, `SubjectContains`, `SenderAddress`.
 
 ## Manual test from the Immediate Window
 
@@ -55,6 +47,6 @@ MailProcessor.ProcessInboxOnStartup
 
 ## Next steps
 
-- Add more sender/subject/domain conditions in `MailRules`
+- Add more conditions in `MailRules`
 - Optionally expand the startup scan beyond unread mail
 - Optionally enable file logging in `Logger` (`ENABLE_FILE_LOG`)

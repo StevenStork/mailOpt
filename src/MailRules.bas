@@ -95,8 +95,8 @@ Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPat
     folderPath = vbNullString
     MatchesMoveRule = False
 
-    ' ServiceNow notifications — match sender domain only (not body URLs).
-    If SenderDomainMatches(mail, "servicenow.us") Then
+    ' ServiceNow notifications — match sender address prefix (not body URLs).
+    If SenderStartsWith(mail, "servicenow.us") Then
         folderPath = "IT Tickets"
         MatchesMoveRule = True
         Exit Function
@@ -121,23 +121,27 @@ Public Function SenderContains(ByRef mail As Outlook.MailItem, ByVal needle As S
     SenderContains = (InStr(1, addr, needle, vbTextCompare) > 0)
 End Function
 
-' True when the SMTP domain equals `domain` or is a subdomain of it
-' (e.g. "mail.servicenow.us" matches "servicenow.us"). Ignores body URLs.
-Public Function SenderDomainMatches(ByRef mail As Outlook.MailItem, ByVal domain As String) As Boolean
+' True when the sender host (after @) starts with `prefix` (case-insensitive).
+' Example: prefix "servicenow.us" matches user@servicenow.us and
+' user@servicenow.us.example.com — not body URLs, not mail.servicenow.us.
+Public Function SenderStartsWith(ByRef mail As Outlook.MailItem, ByVal prefix As String) As Boolean
     Dim addr As String
     Dim atPos As Long
-    Dim senderDomain As String
+    Dim host As String
 
-    addr = LCase$(Trim$(SenderAddress(mail)))
-    domain = LCase$(Trim$(domain))
-    If Len(addr) = 0 Or Len(domain) = 0 Then Exit Function
+    addr = Trim$(SenderAddress(mail))
+    prefix = Trim$(prefix)
+    If Len(addr) = 0 Or Len(prefix) = 0 Then Exit Function
 
     atPos = InStrRev(addr, "@")
-    If atPos = 0 Then Exit Function
+    If atPos = 0 Then
+        host = addr
+    Else
+        host = Mid$(addr, atPos + 1)
+    End If
 
-    senderDomain = Mid$(addr, atPos + 1)
-    SenderDomainMatches = (senderDomain = domain) Or _
-        (Len(senderDomain) > Len(domain) And Right$(senderDomain, Len(domain) + 1) = "." & domain)
+    If Len(host) < Len(prefix) Then Exit Function
+    SenderStartsWith = (StrComp(Left$(host, Len(prefix)), prefix, vbTextCompare) = 0)
 End Function
 
 Public Function SubjectContains(ByRef mail As Outlook.MailItem, ByVal needle As String) As Boolean
