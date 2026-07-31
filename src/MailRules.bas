@@ -162,6 +162,13 @@ Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPat
         Exit Function
     End If
 
+    ' NHNA Comms — username sonashua.siteexecutive.
+    If SenderUserNameIs(mail, "sonashua.siteexecutive") Then
+        folderPath = "\\BAE Comms\NHNA Comms"
+        MatchesMoveRule = True
+        Exit Function
+    End If
+
     ' ServiceNow notifications — match sender host prefix (not body URLs).
     If SenderStartsWith(mail, "servicenow.us") Then
         folderPath = "\\Tickets\IT Tickets"
