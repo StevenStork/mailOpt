@@ -182,6 +182,112 @@ Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPat
         MatchesMoveRule = True
         Exit Function
     End If
+
+    ' Factories / Business Areas — based on factory names mentioned in the mail.
+    If MatchesFactoryMoveRule(mail, folderPath) Then
+        MatchesMoveRule = True
+        Exit Function
+    End If
+End Function
+
+' Routes mail that mentions factories into Factories\* or Business Areas\*
+' group folders when multiple related factories are named.
+Private Function MatchesFactoryMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPath As String) As Boolean
+    Dim text As String
+    Dim microwaveCount As Long
+    Dim ewimcCount As Long
+    Dim totalCount As Long
+    Dim singleName As String
+    Dim hasMdf As Boolean
+    Dim hasFoundry As Boolean
+    Dim hasModules As Boolean
+    Dim hasBoxBuild As Boolean
+    Dim hasCca As Boolean
+
+    folderPath = vbNullString
+    MatchesFactoryMoveRule = False
+
+    text = MailSearchText(mail)
+    If Len(text) = 0 Then Exit Function
+
+    ' --- Microwave group (North / West / East / South) ----------------------
+    microwaveCount = 0
+    If MailMentions(text, "Microwave North") Then
+        microwaveCount = microwaveCount + 1
+        singleName = "Microwave North"
+    End If
+    If MailMentions(text, "Microwave West") Then
+        microwaveCount = microwaveCount + 1
+        singleName = "Microwave West"
+    End If
+    If MailMentions(text, "Microwave East") Then
+        microwaveCount = microwaveCount + 1
+        singleName = "Microwave East"
+    End If
+    If MailMentions(text, "Microwave South") Then
+        microwaveCount = microwaveCount + 1
+        singleName = "Microwave South"
+    End If
+
+    If microwaveCount >= 2 Then
+        folderPath = "\\Business Areas\Microwave"
+        MatchesFactoryMoveRule = True
+        Exit Function
+    End If
+
+    ' --- Semiconductor group (MDF + Foundry) --------------------------------
+    hasMdf = MailMentions(text, "MDF")
+    hasFoundry = MailMentions(text, "Foundry")
+    If hasMdf And hasFoundry Then
+        folderPath = "\\Business Areas\Semiconductor"
+        MatchesFactoryMoveRule = True
+        Exit Function
+    End If
+
+    ' --- EWIMC group (Modules / Box Build / CCA) ----------------------------
+    hasModules = MailMentions(text, "Modules")
+    hasBoxBuild = MailMentions(text, "Box Build")
+    hasCca = MailMentions(text, "CCA")
+
+    ewimcCount = 0
+    If hasModules Then ewimcCount = ewimcCount + 1
+    If hasBoxBuild Then ewimcCount = ewimcCount + 1
+    If hasCca Then ewimcCount = ewimcCount + 1
+
+    If ewimcCount >= 2 Then
+        folderPath = "\\Business Areas\EWIMC"
+        MatchesFactoryMoveRule = True
+        Exit Function
+    End If
+
+    ' --- Single factory → Factories\<name> ----------------------------------
+    totalCount = microwaveCount
+    If hasMdf Then
+        totalCount = totalCount + 1
+        singleName = "MDF"
+    End If
+    If hasFoundry Then
+        totalCount = totalCount + 1
+        singleName = "Foundry"
+    End If
+    If hasModules Then
+        totalCount = totalCount + 1
+        singleName = "Modules"
+    End If
+    If hasBoxBuild Then
+        totalCount = totalCount + 1
+        singleName = "Box Build"
+    End If
+    If hasCca Then
+        totalCount = totalCount + 1
+        singleName = "CCA"
+    End If
+
+    If totalCount = 1 Then
+        folderPath = "\\Factories\" & singleName
+        MatchesFactoryMoveRule = True
+        Exit Function
+    End If
 End Function
 
 Private Function MatchesMarkReadRule(ByRef mail As Outlook.MailItem) As Boolean
@@ -247,6 +353,56 @@ End Function
 
 Public Function SubjectContains(ByRef mail As Outlook.MailItem, ByVal needle As String) As Boolean
     SubjectContains = (InStr(1, mail.Subject, needle, vbTextCompare) > 0)
+End Function
+
+' Subject + plain body text used for content rules (lowercased).
+Private Function MailSearchText(ByRef mail As Outlook.MailItem) As String
+    Dim subject As String
+    Dim body As String
+
+    On Error Resume Next
+    subject = mail.Subject
+    body = mail.Body
+    On Error GoTo 0
+
+    MailSearchText = LCase$(subject & vbLf & body)
+End Function
+
+' Whole-phrase mention check against pre-lowercased search text.
+' Requires non-alphanumeric boundaries so short tokens like "CCA" / "MDF"
+' do not match inside longer words.
+Private Function MailMentions(ByVal searchText As String, ByVal phrase As String) As Boolean
+    Dim needle As String
+    Dim pos As Long
+    Dim beforeAsc As Long
+    Dim afterAsc As Long
+
+    needle = LCase$(Trim$(phrase))
+    If Len(searchText) = 0 Or Len(needle) = 0 Then Exit Function
+
+    pos = InStr(1, searchText, needle, vbBinaryCompare)
+    Do While pos > 0
+        beforeAsc = 0
+        afterAsc = 0
+        If pos > 1 Then beforeAsc = AscW(Mid$(searchText, pos - 1, 1))
+        If pos + Len(needle) <= Len(searchText) Then
+            afterAsc = AscW(Mid$(searchText, pos + Len(needle), 1))
+        End If
+
+        If Not IsAlphaNumericAsc(beforeAsc) And Not IsAlphaNumericAsc(afterAsc) Then
+            MailMentions = True
+            Exit Function
+        End If
+
+        pos = InStr(pos + 1, searchText, needle, vbBinaryCompare)
+    Loop
+End Function
+
+Private Function IsAlphaNumericAsc(ByVal code As Long) As Boolean
+    If code = 0 Then Exit Function
+    IsAlphaNumericAsc = (code >= 48 And code <= 57) Or _
+                        (code >= 65 And code <= 90) Or _
+                        (code >= 97 And code <= 122)
 End Function
 
 Public Function SenderAddress(ByRef mail As Outlook.MailItem) As String
