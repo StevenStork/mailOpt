@@ -7,7 +7,6 @@ Attribute VB_Name = "MailProcessor"
 Option Explicit
 
 Private m_Initialized As Boolean
-Private m_Inbox As Outlook.Folder
 
 '------------------------------------------------------------------------------
 ' Lifecycle
@@ -16,52 +15,42 @@ Private m_Inbox As Outlook.Folder
 Public Sub Initialize()
     If m_Initialized Then Exit Sub
 
-    Set m_Inbox = FolderHelpers.GetDefaultInbox()
     MailRules.LoadRules
     m_Initialized = True
 End Sub
 
 Public Sub Shutdown()
-    Set m_Inbox = Nothing
     m_Initialized = False
 End Sub
 
 '------------------------------------------------------------------------------
-' On-demand: run all filters against every Inbox item
+' On-demand: run all filters against every item in every mail folder
 ' Call from the Immediate Window, a button, or a custom ribbon control:
-'   MailProcessor.RunInboxFilters
+'   MailProcessor.RunAllFilters
 '------------------------------------------------------------------------------
 
-Public Sub RunInboxFilters()
-    Dim items As Outlook.Items
-    Dim i As Long
-
+Public Sub RunAllFilters()
     If Not m_Initialized Then Initialize
+    ProcessAllFolders False
+End Sub
 
-    Set items = m_Inbox.Items
-    items.Sort "[ReceivedTime]", True
-
-    For i = items.Count To 1 Step -1
-        ProcessOutlookItem items(i)
-    Next i
+' Backward-compatible alias.
+Public Sub RunInboxFilters()
+    RunAllFilters
 End Sub
 
 '------------------------------------------------------------------------------
-' Startup: scan unread Inbox items
+' Startup: scan unread items in all mail folders
 '------------------------------------------------------------------------------
 
-Public Sub ProcessInboxOnStartup()
-    Dim items As Outlook.Items
-    Dim i As Long
-
+Public Sub ProcessAllFoldersOnStartup()
     If Not m_Initialized Then Initialize
+    ProcessAllFolders True
+End Sub
 
-    Set items = m_Inbox.Items.Restrict("[Unread] = true")
-    items.Sort "[ReceivedTime]", True
-
-    For i = items.Count To 1 Step -1
-        ProcessOutlookItem items(i)
-    Next i
+' Backward-compatible alias.
+Public Sub ProcessInboxOnStartup()
+    ProcessAllFoldersOnStartup
 End Sub
 
 '------------------------------------------------------------------------------
@@ -90,6 +79,51 @@ Public Sub ProcessNewMail(ByVal EntryIDCollection As String)
             ProcessOutlookItem item
         End If
     Next i
+End Sub
+
+'------------------------------------------------------------------------------
+' Folder scan
+'------------------------------------------------------------------------------
+
+Private Sub ProcessAllFolders(ByVal unreadOnly As Boolean)
+    Dim root As Outlook.Folder
+
+    Set root = FolderHelpers.GetMailStoreRoot()
+    ProcessFolderTree root, unreadOnly
+End Sub
+
+Private Sub ProcessFolderTree(ByVal folder As Outlook.Folder, ByVal unreadOnly As Boolean)
+    Dim subFolder As Outlook.Folder
+    Dim items As Outlook.Items
+    Dim i As Long
+
+    On Error Resume Next
+
+    If unreadOnly Then
+        Set items = folder.Items.Restrict("[Unread] = true")
+    Else
+        Set items = folder.Items
+    End If
+
+    If Err.Number <> 0 Then
+        Err.Clear
+        GoTo NextFolder
+    End If
+
+    On Error GoTo 0
+
+    items.Sort "[ReceivedTime]", True
+
+    For i = items.Count To 1 Step -1
+        ProcessOutlookItem items(i)
+    Next i
+
+NextFolder:
+    On Error Resume Next
+    For Each subFolder In folder.Folders
+        ProcessFolderTree subFolder, unreadOnly
+    Next subFolder
+    On Error GoTo 0
 End Sub
 
 '------------------------------------------------------------------------------

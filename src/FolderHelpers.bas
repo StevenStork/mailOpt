@@ -15,6 +15,10 @@ Public Function GetDefaultInbox() As Outlook.Folder
     Set GetDefaultInbox = ns.GetDefaultFolder(olFolderInbox)
 End Function
 
+Public Function GetMailStoreRoot() As Outlook.Folder
+    Set GetMailStoreRoot = GetDefaultInbox().Parent
+End Function
+
 ' Returns an existing folder or creates each segment along the path.
 ' path is relative to the Inbox unless rooted with "\\" for mailbox root.
 Public Function GetOrCreateFolder(ByVal folderPath As String) As Outlook.Folder

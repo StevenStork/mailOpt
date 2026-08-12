@@ -19,7 +19,7 @@ Option Explicit
 Private Sub Application_Startup()
     On Error Resume Next
     MailProcessor.Initialize
-    MailProcessor.ProcessInboxOnStartup
+    MailProcessor.ProcessAllFoldersOnStartup
 End Sub
 
 ' Fires when one or more new items arrive. EntryIDCollection is a comma-

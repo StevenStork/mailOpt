@@ -7,17 +7,17 @@ Outlook VBA framework that processes mail when Outlook starts and when new messa
 | Module | Role |
 |---|---|
 | `ThisOutlookSession` | Wires `Application_Startup`, `Application_NewMailEx`, and `Application_Quit` |
-| `MailProcessor` | Startup scan, on-demand inbox run, per-item pipeline |
+| `MailProcessor` | Startup scan, on-demand full-mailbox run, per-item pipeline |
 | `MailRules` | Rule evaluation (meeting responses, delete → move → mark read / flag) |
 | `SortRules` | File-based sender routing from sort text files |
 | `FolderHelpers` | Resolve / create folders under the Inbox |
 
 Flow:
 
-1. Outlook opens → `Application_Startup` → `MailProcessor.Initialize` → scan unread Inbox items
+1. Outlook opens → `Application_Startup` → `MailProcessor.Initialize` → scan unread items in all mail folders
 2. New mail arrives → `Application_NewMailEx` → resolve each EntryID → `ProcessOutlookItem`
 3. `MailRules.EvaluateItem` returns an action → move / mark read / delete / flag / none
-4. On demand → `MailProcessor.RunInboxFilters` processes every Inbox item
+4. On demand → `MailProcessor.RunAllFilters` processes every item in every mail folder
 
 ## Install in Outlook
 
@@ -46,12 +46,11 @@ Helpers: `SenderUserNameIs`, `SenderStartsWith`, `SenderContains`, `SubjectConta
 From the Immediate Window (`Ctrl+G`):
 
 ```vba
-MailProcessor.RunInboxFilters
+MailProcessor.RunAllFilters
 ```
 
-Or call that same public sub from a Quick Access Toolbar / ribbon macro button.
+Or call that same public sub from a Quick Access Toolbar / ribbon macro button. `RunInboxFilters` is kept as an alias.
 
 ## Next steps
 
 - Add more conditions in `MailRules`
-- Optionally expand the startup scan beyond unread mail
