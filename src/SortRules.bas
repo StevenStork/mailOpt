@@ -35,6 +35,7 @@ End Sub
 
 '------------------------------------------------------------------------------
 ' Match — sender Email column → parent\<Destination>
+' For each sort file: try conversation-root sender, then current sender.
 '------------------------------------------------------------------------------
 
 Public Function MatchCommsRule(ByRef mail As Outlook.MailItem, ByRef folderPath As String) As Boolean
@@ -52,9 +53,8 @@ End Function
 Private Function MatchLoadedRules(ByRef mail As Outlook.MailItem, ByRef rules As Object, _
     ByVal parentFolder As String, ByRef folderPath As String) As Boolean
 
-    Dim addr As String
-    Dim userName As String
-    Dim dest As String
+    Dim rootAddr As String
+    Dim currentAddr As String
 
     folderPath = vbNullString
     MatchLoadedRules = False
@@ -62,24 +62,47 @@ Private Function MatchLoadedRules(ByRef mail As Outlook.MailItem, ByRef rules As
     If rules Is Nothing Then Exit Function
     If rules.Count = 0 Then Exit Function
 
-    addr = LCase$(Trim$(MailRules.SenderAddress(mail)))
-    userName = LCase$(SenderLocalPart(addr))
+    MailRules.GetSortSenderAddresses mail, rootAddr, currentAddr
 
-    If Len(addr) > 0 Then
-        If rules.Exists(addr) Then
-            dest = rules(addr)
-            folderPath = parentFolder & "\" & dest
+    ' 1) Conversation root sender (initial email in the chain)
+    If MatchAddressAgainstRules(rootAddr, rules, parentFolder, folderPath) Then
+        MatchLoadedRules = True
+        Exit Function
+    End If
+
+    ' 2) Current message sender (skip if same as root — already tried)
+    If StrComp(currentAddr, rootAddr, vbBinaryCompare) <> 0 Then
+        If MatchAddressAgainstRules(currentAddr, rules, parentFolder, folderPath) Then
             MatchLoadedRules = True
             Exit Function
         End If
     End If
+End Function
 
+Private Function MatchAddressAgainstRules(ByVal addr As String, ByRef rules As Object, _
+    ByVal parentFolder As String, ByRef folderPath As String) As Boolean
+
+    Dim userName As String
+    Dim dest As String
+
+    MatchAddressAgainstRules = False
+    folderPath = vbNullString
+    addr = LCase$(Trim$(addr))
+    If Len(addr) = 0 Then Exit Function
+
+    If rules.Exists(addr) Then
+        dest = rules(addr)
+        folderPath = parentFolder & "\" & dest
+        MatchAddressAgainstRules = True
+        Exit Function
+    End If
+
+    userName = LCase$(SenderLocalPart(addr))
     If Len(userName) > 0 Then
         If rules.Exists(userName) Then
             dest = rules(userName)
             folderPath = parentFolder & "\" & dest
-            MatchLoadedRules = True
-            Exit Function
+            MatchAddressAgainstRules = True
         End If
     End If
 End Function

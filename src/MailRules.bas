@@ -134,6 +134,9 @@ Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPat
     folderPath = vbNullString
     MatchesMoveRule = False
 
+    ' Each sort file tries conversation-root sender, then current sender,
+    ' then control moves to the next filter below.
+
     ' BAE Comms — sender mappings from sortComms text file.
     If SortRules.MatchCommsRule(mail, folderPath) Then
         MatchesMoveRule = True
@@ -226,4 +229,103 @@ Public Function SenderAddress(ByRef mail As Outlook.MailItem) As String
         End If
     End If
     SenderAddress = mail.SenderEmailAddress
+End Function
+
+'------------------------------------------------------------------------------
+' Conversation root sender (for sort-file matching)
+'------------------------------------------------------------------------------
+
+Private m_SortSenderMailId As String
+Private m_SortRootAddr As String
+Private m_SortCurrentAddr As String
+
+' Returns lowercase root sender (when available) and current sender.
+' Cached per mail EntryID so sortComms → sortTickets → sortProductLines
+' only resolves the conversation once.
+Public Sub GetSortSenderAddresses(ByRef mail As Outlook.MailItem, _
+    ByRef rootAddr As String, ByRef currentAddr As String)
+
+    Dim entryId As String
+    Dim rootMail As Outlook.MailItem
+
+    rootAddr = vbNullString
+    currentAddr = vbNullString
+    If mail Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    entryId = mail.EntryID
+    On Error GoTo 0
+
+    If Len(entryId) > 0 And StrComp(entryId, m_SortSenderMailId, vbBinaryCompare) = 0 Then
+        rootAddr = m_SortRootAddr
+        currentAddr = m_SortCurrentAddr
+        Exit Sub
+    End If
+
+    currentAddr = LCase$(Trim$(SenderAddress(mail)))
+
+    Set rootMail = ConversationRootMail(mail)
+    If Not rootMail Is Nothing Then
+        rootAddr = LCase$(Trim$(SenderAddress(rootMail)))
+    End If
+
+    m_SortSenderMailId = entryId
+    m_SortRootAddr = rootAddr
+    m_SortCurrentAddr = currentAddr
+End Sub
+
+' Earliest root MailItem in the conversation, or Nothing when unavailable.
+Public Function ConversationRootMail(ByRef mail As Outlook.MailItem) As Outlook.MailItem
+    Dim parentFolder As Outlook.Folder
+    Dim store As Outlook.Store
+    Dim conv As Outlook.Conversation
+    Dim roots As Outlook.SimpleItems
+    Dim item As Object
+    Dim candidate As Outlook.MailItem
+    Dim best As Outlook.MailItem
+    Dim bestTime As Date
+    Dim itemTime As Date
+    Dim i As Long
+
+    Set ConversationRootMail = Nothing
+    If mail Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set parentFolder = mail.Parent
+    If parentFolder Is Nothing Then Exit Function
+
+    Set store = parentFolder.Store
+    If store Is Nothing Then Exit Function
+    If Not store.IsConversationEnabled Then Exit Function
+
+    Set conv = mail.GetConversation
+    If conv Is Nothing Then Exit Function
+
+    Set roots = conv.GetRootItems
+    If roots Is Nothing Then Exit Function
+    If roots.Count = 0 Then Exit Function
+
+    For i = 1 To roots.Count
+        Set item = roots.Item(i)
+        Set candidate = Nothing
+        If TypeOf item Is Outlook.MailItem Then
+            Set candidate = item
+        End If
+        If candidate Is Nothing Then GoTo NextRoot
+
+        itemTime = candidate.ReceivedTime
+        If itemTime = 0 Then itemTime = candidate.SentOn
+
+        If best Is Nothing Then
+            Set best = candidate
+            bestTime = itemTime
+        ElseIf itemTime < bestTime Then
+            Set best = candidate
+            bestTime = itemTime
+        End If
+NextRoot:
+    Next i
+
+    Set ConversationRootMail = best
+    On Error GoTo 0
 End Function
