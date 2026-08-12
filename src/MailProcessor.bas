@@ -24,19 +24,24 @@ Public Sub Shutdown()
 End Sub
 
 '------------------------------------------------------------------------------
-' On-demand: run all filters against every item in every mail folder
-' Call from the Immediate Window, a button, or a custom ribbon control:
-'   MailProcessor.RunAllFilters
+' On-demand macro: sort all mail (read and unread) in every folder
+' Run via Alt+F8, Immediate Window, or assign to a toolbar button:
+'   MailProcessor.SortAllEmails
 '------------------------------------------------------------------------------
 
-Public Sub RunAllFilters()
+Public Sub SortAllEmails()
     If Not m_Initialized Then Initialize
+    MailRules.LoadRules
     ProcessAllFolders False
+End Sub
+
+Public Sub RunAllFilters()
+    SortAllEmails
 End Sub
 
 ' Backward-compatible alias.
 Public Sub RunInboxFilters()
-    RunAllFilters
+    SortAllEmails
 End Sub
 
 '------------------------------------------------------------------------------

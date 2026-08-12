@@ -41,15 +41,21 @@ Edit matchers / `EvaluateItem` in `MailRules.bas`:
 
 Helpers: `SenderUserNameIs`, `SenderStartsWith`, `SenderContains`, `SubjectContains`, `SenderAddress`.
 
-## Run filters on demand
+## Sort all mail on command
 
-From the Immediate Window (`Ctrl+G`):
+Run the **`SortAllEmails`** macro to apply every rule to all mail (read and unread) in every folder. It also reloads your sort text files first.
+
+**From the macro dialog:** press `Alt+F8`, choose `SortAllEmails`, click **Run**.
+
+**From the Immediate Window** (`Ctrl+G`):
 
 ```vba
-MailProcessor.RunAllFilters
+MailProcessor.SortAllEmails
 ```
 
-Or call that same public sub from a Quick Access Toolbar / ribbon macro button. `RunInboxFilters` is kept as an alias.
+**Assign to a button:** **File → Options → Quick Access Toolbar** → choose *Macros*, add `SortAllEmails`, then click the button whenever you want a full sort.
+
+`RunAllFilters` and `RunInboxFilters` call the same macro.
 
 ## Next steps
 
