@@ -225,36 +225,48 @@ End Function
 
 Private Function LooksLikeOutOfOfficeText(ByVal text As String) As Boolean
     Dim t As String
+    Dim phrases As Variant
+    Dim i As Long
+
     t = LCase$(Trim$(text))
     If Len(t) = 0 Then Exit Function
 
-    LooksLikeOutOfOfficeText = _
-        (InStr(1, t, "out of office", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "out of the office", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "out-of-office", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "automatic reply", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "auto-reply", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "auto reply", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "autoreply", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "auto response", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "auto-response", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "away from the office", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "away from office", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "currently out of the office", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "currently out of office", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "i am currently out", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "i'm currently out", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "i will be out of the office", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "i will be out of office", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "i am out of the office", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "i am out of office", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "i'm out of the office", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "i'm out of office", vbBinaryCompare) > 0) Or _
-        (Left$(t, 4) = "ooo:") Or _
-        (Left$(t, 4) = "ooo ") Or _
-        (Left$(t, 4) = "ooo-") Or _
-        (InStr(1, t, "[ooo]", vbBinaryCompare) > 0) Or _
-        (InStr(1, t, "(ooo)", vbBinaryCompare) > 0)
+    If Left$(t, 4) = "ooo:" Or Left$(t, 4) = "ooo " Or Left$(t, 4) = "ooo-" Then
+        LooksLikeOutOfOfficeText = True
+        Exit Function
+    End If
+
+    phrases = Array( _
+        "out of office", _
+        "out of the office", _
+        "out-of-office", _
+        "automatic reply", _
+        "auto-reply", _
+        "auto reply", _
+        "autoreply", _
+        "auto response", _
+        "auto-response", _
+        "away from the office", _
+        "away from office", _
+        "currently out of the office", _
+        "currently out of office", _
+        "i am currently out", _
+        "i'm currently out", _
+        "i will be out of the office", _
+        "i will be out of office", _
+        "i am out of the office", _
+        "i am out of office", _
+        "i'm out of the office", _
+        "i'm out of office", _
+        "[ooo]", _
+        "(ooo)")
+
+    For i = LBound(phrases) To UBound(phrases)
+        If InStr(1, t, CStr(phrases(i)), vbBinaryCompare) > 0 Then
+            LooksLikeOutOfOfficeText = True
+            Exit Function
+        End If
+    Next i
 End Function
 
 '------------------------------------------------------------------------------
