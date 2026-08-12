@@ -9,7 +9,7 @@ Outlook VBA framework that processes mail when Outlook starts and when new messa
 | `ThisOutlookSession` | Wires `Application_Startup`, `Application_NewMailEx`, and `Application_Quit` |
 | `MailProcessor` | Startup scan, on-demand full-mailbox run, per-item pipeline |
 | `MailRules` | Rule evaluation (meeting responses/requests, move, flag) |
-| `SortRules` | File-based sender routing from sort text files |
+| `SortRules` | File-based sender routing from sort text files (conversation root, then current sender) |
 | `FolderHelpers` | Resolve / create folders under the Inbox |
 
 Flow:
@@ -39,7 +39,9 @@ Edit matchers / `EvaluateItem` in `MailRules.bas`:
 - `MatchesMarkReadRule` — return `True` to mark unread mail as read
 - Meeting responses and other item types can be handled in `EvaluateItem`
 
-Helpers: `SenderUserNameIs`, `SenderStartsWith`, `SenderContains`, `SubjectContains`, `SenderAddress`.
+Helpers: `SenderUserNameIs`, `SenderStartsWith`, `SenderContains`, `SubjectContains`, `SenderAddress`, `ConversationRootMail`, `GetSortSenderAddresses`.
+
+Sort-file matching (`sortComms` → `sortTickets` → `sortProductLines`) uses the **conversation root sender** when Outlook can resolve it, then the **current message sender**, then moves on to the next sort file.
 
 ## Sort all mail on command
 
