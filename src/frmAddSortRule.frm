@@ -155,7 +155,7 @@ Private Sub PopulateParentFolders()
     cboParentFolder.Clear
     files = SortRules.SortFileNames()
     For i = LBound(files) To UBound(files)
-        cboParentFolder.AddItem SortRules.ParentFolderDisplayName(CStr(files(i)))
+        cboParentFolder.AddItem DisplayNameForSortFile(CStr(files(i)))
     Next i
     cboDestination.Clear
     cboDestination.Enabled = False
@@ -176,7 +176,7 @@ Private Sub PopulateDestinationFolders()
     cboDestination.Clear
     cboDestination.Enabled = False
 
-    fileName = SortRules.SortFileNameFromParentDisplay(cboParentFolder.Text)
+    fileName = SortFileForParentDisplay(cboParentFolder.Text)
     If Len(fileName) = 0 Then Exit Sub
 
     parentPath = SortRules.ParentFolderForSortFile(fileName)
@@ -208,7 +208,7 @@ Private Sub btnSave_Click()
     email = Trim$(txtSender.Text)
     displayName = Trim$(txtName.Text)
     parentDisplay = Trim$(cboParentFolder.Text)
-    fileName = SortRules.SortFileNameFromParentDisplay(parentDisplay)
+    fileName = SortFileForParentDisplay(parentDisplay)
     destination = Trim$(cboDestination.Text)
 
     If Len(email) = 0 Then
@@ -262,3 +262,31 @@ End Sub
 Private Sub btnCancel_Click()
     Me.Hide
 End Sub
+
+' "\\BAE Comms" → "BAE Comms" for the dropdown / messages.
+Private Function DisplayNameForSortFile(ByVal fileName As String) As String
+    Dim parent As String
+    parent = SortRules.ParentFolderForSortFile(fileName)
+    If Left$(parent, 2) = "\\" Then
+        DisplayNameForSortFile = Mid$(parent, 3)
+    Else
+        DisplayNameForSortFile = parent
+    End If
+End Function
+
+Private Function SortFileForParentDisplay(ByVal displayName As String) As String
+    Dim files As Variant
+    Dim i As Long
+
+    displayName = Trim$(displayName)
+    If Left$(displayName, 2) = "\\" Then displayName = Mid$(displayName, 3)
+    If Len(displayName) = 0 Then Exit Function
+
+    files = SortRules.SortFileNames()
+    For i = LBound(files) To UBound(files)
+        If StrComp(DisplayNameForSortFile(CStr(files(i))), displayName, vbTextCompare) = 0 Then
+            SortFileForParentDisplay = CStr(files(i))
+            Exit Function
+        End If
+    Next i
+End Function

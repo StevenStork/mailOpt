@@ -31,6 +31,7 @@ Flow:
 4. Import the UserForm:
    - **File → Import File…** → select `frmAddSortRule.frm`
    - If a broken `frmAddSortRule` already exists in the project, remove it first (right-click → Remove), then import again.
+   - Re-import `SortRules.bas` and `FolderHelpers.bas` as well whenever the form is updated (replace the old modules).
    - The form builds its controls in code (`cboParentFolder` is the parent-folder dropdown). No `.frx` designer file is required.
 5. Set `SORT_RULES_FOLDER` in `SortRules.bas` to the folder containing your sort text files (`sortComms`, `sortProductLines`, `sortTickets`).
 6. Copy your sort files into that folder (tab- or comma-delimited: `Email`, `Destination`, `Name`).
