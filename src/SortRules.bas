@@ -34,6 +34,214 @@ Public Sub ReloadAllSortRules()
 End Sub
 
 '------------------------------------------------------------------------------
+' Form / UI helpers — sort file catalog and write-back
+'------------------------------------------------------------------------------
+
+' Base names: sortComms, sortTickets, sortProductLines
+Public Function SortFileNames() As Variant
+    SortFileNames = Array(SORT_COMMS_FILE, SORT_TICKETS_FILE, SORT_PRODUCT_LINES_FILE)
+End Function
+
+Public Function ParentFolderForSortFile(ByVal fileName As String) As String
+    Select Case LCase$(Trim$(fileName))
+        Case LCase$(SORT_COMMS_FILE)
+            ParentFolderForSortFile = BAE_COMMS_PARENT
+        Case LCase$(SORT_TICKETS_FILE)
+            ParentFolderForSortFile = TICKETS_PARENT
+        Case LCase$(SORT_PRODUCT_LINES_FILE)
+            ParentFolderForSortFile = PROGRAM_GROUPS_PARENT
+        Case Else
+            ParentFolderForSortFile = vbNullString
+    End Select
+End Function
+
+' Parent folder name for UI dropdowns (e.g. "BAE Comms"), no \\ prefix.
+Public Function ParentFolderDisplayName(ByVal fileName As String) As String
+    ParentFolderDisplayName = StripRootPrefix(ParentFolderForSortFile(fileName))
+End Function
+
+' Map a parent display name ("BAE Comms" or "\\BAE Comms") back to sortComms / etc.
+Public Function SortFileNameFromParentDisplay(ByVal displayName As String) As String
+    Dim files As Variant
+    Dim i As Long
+    Dim candidate As String
+
+    displayName = StripRootPrefix(Trim$(displayName))
+    If Len(displayName) = 0 Then Exit Function
+
+    files = SortFileNames()
+    For i = LBound(files) To UBound(files)
+        candidate = ParentFolderDisplayName(CStr(files(i)))
+        If StrComp(candidate, displayName, vbTextCompare) = 0 Then
+            SortFileNameFromParentDisplay = CStr(files(i))
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function StripRootPrefix(ByVal folderPath As String) As String
+    If Left$(folderPath, 2) = "\\" Then
+        StripRootPrefix = Mid$(folderPath, 3)
+    Else
+        StripRootPrefix = folderPath
+    End If
+End Function
+
+' Add or update a row in the chosen sort file, then reload in-memory rules.
+' Returns True on success.
+Public Function UpsertSortRule(ByVal fileName As String, ByVal email As String, _
+    ByVal destination As String, ByVal displayName As String) As Boolean
+
+    Dim filePath As String
+    Dim lines() As String
+    Dim i As Long
+    Dim cols() As String
+    Dim emailKey As String
+    Dim line As String
+    Dim found As Boolean
+    Dim outText As String
+    Dim newLine As String
+
+    UpsertSortRule = False
+
+    email = Trim$(email)
+    destination = Trim$(destination)
+    displayName = Trim$(displayName)
+    fileName = Trim$(fileName)
+
+    If Len(email) = 0 Or Len(destination) = 0 Or Len(fileName) = 0 Then Exit Function
+    If Len(ParentFolderForSortFile(fileName)) = 0 Then Exit Function
+
+    filePath = EnsureSortRulesFilePath(fileName)
+    If Len(filePath) = 0 Then Exit Function
+
+    emailKey = LCase$(email)
+    newLine = email & vbTab & destination & vbTab & displayName
+
+    lines = ReadAllLines(filePath)
+    found = False
+    outText = vbNullString
+
+    If UBound(lines) >= LBound(lines) Then
+        For i = LBound(lines) To UBound(lines)
+            line = lines(i)
+
+            ' Preserve blank trailing lines lightly: skip empty only if we have content after.
+            If Len(Trim$(line)) = 0 Then
+                ' Keep a single blank line only when it is not the last content row.
+                GoTo NextUpsertLine
+            End If
+
+            If IsHeaderLine(line) Then
+                outText = outText & line & vbCrLf
+                GoTo NextUpsertLine
+            End If
+
+            cols = SplitSortLine(line)
+            If UBound(cols) - LBound(cols) + 1 >= 1 Then
+                If StrComp(LCase$(Trim$(cols(LBound(cols)))), emailKey, vbBinaryCompare) = 0 Then
+                    outText = outText & newLine & vbCrLf
+                    found = True
+                    GoTo NextUpsertLine
+                End If
+            End If
+
+            outText = outText & line & vbCrLf
+NextUpsertLine:
+        Next i
+    End If
+
+    If Not found Then
+        If Len(outText) = 0 Then
+            outText = "Email" & vbTab & "Destination" & vbTab & "Name" & vbCrLf
+        End If
+        outText = outText & newLine & vbCrLf
+    End If
+
+    If Not WriteTextFile(filePath, outText) Then Exit Function
+
+    ReloadAllSortRules
+    UpsertSortRule = True
+End Function
+
+' Resolve path, creating the rules folder and an empty headered file when missing.
+Private Function EnsureSortRulesFilePath(ByVal fileName As String) As String
+    Dim base As String
+    Dim candidate As String
+    Dim folderPath As String
+
+    base = SORT_RULES_FOLDER
+    If Right$(base, 1) <> "\" Then base = base & "\"
+    folderPath = Left$(base, Len(base) - 1)
+
+    If Not EnsureFolderTree(folderPath) Then
+        EnsureSortRulesFilePath = vbNullString
+        Exit Function
+    End If
+
+    candidate = ResolveSortRulesFilePath(fileName)
+    If Len(candidate) > 0 Then
+        EnsureSortRulesFilePath = candidate
+        Exit Function
+    End If
+
+    candidate = base & fileName & ".txt"
+    If Not WriteTextFile(candidate, "Email" & vbTab & "Destination" & vbTab & "Name" & vbCrLf) Then
+        EnsureSortRulesFilePath = vbNullString
+        Exit Function
+    End If
+
+    EnsureSortRulesFilePath = candidate
+End Function
+
+Private Function EnsureFolderTree(ByVal folderPath As String) As Boolean
+    Dim fso As Object
+    Dim parts() As String
+    Dim current As String
+    Dim i As Long
+
+    EnsureFolderTree = False
+    On Error Resume Next
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso Is Nothing Then Exit Function
+
+    If fso.FolderExists(folderPath) Then
+        EnsureFolderTree = True
+        Exit Function
+    End If
+
+    parts = Split(folderPath, "\")
+    current = parts(0)
+    For i = 1 To UBound(parts)
+        If Len(parts(i)) = 0 Then GoTo NextFolderPart
+        current = current & "\" & parts(i)
+        If Not fso.FolderExists(current) Then fso.CreateFolder current
+        If Not fso.FolderExists(current) Then Exit Function
+NextFolderPart:
+    Next i
+
+    EnsureFolderTree = fso.FolderExists(folderPath)
+    On Error GoTo 0
+End Function
+
+Private Function WriteTextFile(ByVal filePath As String, ByVal content As String) As Boolean
+    Dim fso As Object
+    Dim ts As Object
+
+    WriteTextFile = False
+    On Error Resume Next
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso Is Nothing Then Exit Function
+
+    Set ts = fso.CreateTextFile(filePath, True, False)
+    If ts Is Nothing Then Exit Function
+    ts.Write content
+    ts.Close
+    WriteTextFile = (Err.Number = 0)
+    On Error GoTo 0
+End Function
+
+'------------------------------------------------------------------------------
 ' Match — sender Email column → parent\<Destination>
 '------------------------------------------------------------------------------
 
