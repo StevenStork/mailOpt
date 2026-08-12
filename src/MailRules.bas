@@ -30,6 +30,10 @@ Private Const MSG_MEETING_REQUEST As String = "IPM.Schedule.Meeting.Request"
 Private Const SORT_RULES_FOLDER As String = "C:\mailOpt\sortRules\"
 Private Const SORT_CATALOG_COUNT As Long = 3
 
+Private Const PR_SENDER_SMTP_ADDRESS As String = "http://schemas.microsoft.com/mapi/proptag/0x5D01001E"
+Private Const PR_SMTP_ADDRESS As String = "http://schemas.microsoft.com/mapi/proptag/0x39FE001E"
+Private Const PR_STORE_ENTRYID As String = "http://schemas.microsoft.com/mapi/proptag/0x0FFB0102"
+
 ' Parallel catalog: file base name, parent Outlook path, loaded rules dictionary.
 Private m_SortFiles(1 To SORT_CATALOG_COUNT) As String
 Private m_SortParents(1 To SORT_CATALOG_COUNT) As String
@@ -74,6 +78,7 @@ Public Function EvaluateItem(ByRef item As Object) As MailAction
     Dim result As MailAction
     Dim msgClass As String
     Dim folderPath As String
+    Dim mail As Outlook.MailItem
 
     result.ActionType = maNone
     result.FolderPath = vbNullString
@@ -115,7 +120,8 @@ Public Function EvaluateItem(ByRef item As Object) As MailAction
     End Select
 
     If TypeOf item Is Outlook.MailItem Then
-        If MatchesMoveRule(item, folderPath) Then
+        Set mail = item
+        If MatchesMoveRule(mail, folderPath) Then
             result.ActionType = maMove
             result.FolderPath = folderPath
             result.RuleName = "Move"
@@ -126,32 +132,47 @@ Public Function EvaluateItem(ByRef item As Object) As MailAction
 End Function
 
 ' For each sort file: try conversation-root sender, then current sender.
+' Current sender is always attempted when it differs from root (or root is unknown).
 Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPath As String) As Boolean
     Dim rootAddr As String
     Dim currentAddr As String
+    Dim addrs(1 To 2) As String
+    Dim addrCount As Long
     Dim i As Long
+    Dim a As Long
 
     folderPath = vbNullString
     MatchesMoveRule = False
     EnsureCatalog
 
-    GetSortSenderAddresses mail, rootAddr, currentAddr
+    ResolveSortSenders mail, rootAddr, currentAddr
+
+    addrCount = 0
+    If Len(rootAddr) > 0 Then
+        addrCount = 1
+        addrs(1) = rootAddr
+    End If
+    If Len(currentAddr) > 0 Then
+        If addrCount = 0 Then
+            addrCount = 1
+            addrs(1) = currentAddr
+        ElseIf StrComp(currentAddr, addrs(1), vbBinaryCompare) <> 0 Then
+            addrCount = 2
+            addrs(2) = currentAddr
+        End If
+    End If
+    If addrCount = 0 Then Exit Function
 
     For i = 1 To SORT_CATALOG_COUNT
         If m_SortRules(i) Is Nothing Then GoTo NextCatalog
         If m_SortRules(i).Count = 0 Then GoTo NextCatalog
 
-        If MatchAddressAgainstRules(rootAddr, m_SortRules(i), m_SortParents(i), folderPath) Then
-            MatchesMoveRule = True
-            Exit Function
-        End If
-
-        If StrComp(currentAddr, rootAddr, vbBinaryCompare) <> 0 Then
-            If MatchAddressAgainstRules(currentAddr, m_SortRules(i), m_SortParents(i), folderPath) Then
+        For a = 1 To addrCount
+            If MatchAddressAgainstRules(addrs(a), m_SortRules(i), m_SortParents(i), folderPath) Then
                 MatchesMoveRule = True
                 Exit Function
             End If
-        End If
+        Next a
 NextCatalog:
     Next i
 End Function
@@ -166,6 +187,7 @@ Private Function MatchAddressAgainstRules(ByVal addr As String, ByRef rules As O
     folderPath = vbNullString
     addr = LCase$(Trim$(addr))
     If Len(addr) = 0 Then Exit Function
+    If rules Is Nothing Then Exit Function
 
     If rules.Exists(addr) Then
         dest = rules(addr)
@@ -189,27 +211,53 @@ End Function
 Public Function SenderAddress(ByRef mail As Outlook.MailItem) As String
     Dim ae As Outlook.AddressEntry
     Dim exch As Outlook.ExchangeUser
+    Dim pa As Outlook.PropertyAccessor
+    Dim smtp As String
+
+    SenderAddress = vbNullString
+    If mail Is Nothing Then Exit Function
 
     On Error Resume Next
-    If mail.SenderEmailType = "EX" Then
+
+    ' Prefer the SMTP sender property when present.
+    Set pa = mail.PropertyAccessor
+    If Not pa Is Nothing Then
+        smtp = pa.GetProperty(PR_SENDER_SMTP_ADDRESS)
+        If Len(smtp) > 0 Then
+            SenderAddress = smtp
+            Exit Function
+        End If
+    End If
+
+    If StrComp(mail.SenderEmailType, "EX", vbTextCompare) = 0 Then
         Set ae = mail.Sender
         If Not ae Is Nothing Then
             Set exch = ae.GetExchangeUser
             If Not exch Is Nothing Then
-                SenderAddress = exch.PrimarySmtpAddress
+                smtp = exch.PrimarySmtpAddress
+                If Len(smtp) > 0 Then
+                    SenderAddress = smtp
+                    Exit Function
+                End If
+            End If
+
+            smtp = ae.PropertyAccessor.GetProperty(PR_SMTP_ADDRESS)
+            If Len(smtp) > 0 Then
+                SenderAddress = smtp
                 Exit Function
             End If
         End If
     End If
+
     SenderAddress = mail.SenderEmailAddress
+    Err.Clear
 End Function
 
-' Lowercase root sender (when available) and current sender; cached per EntryID.
-Public Sub GetSortSenderAddresses(ByRef mail As Outlook.MailItem, _
+' Resolve root then current sender. Conversation failures never clear currentAddr.
+Private Sub ResolveSortSenders(ByRef mail As Outlook.MailItem, _
     ByRef rootAddr As String, ByRef currentAddr As String)
 
     Dim entryId As String
-    Dim rootMail As Outlook.MailItem
 
     rootAddr = vbNullString
     currentAddr = vbNullString
@@ -217,7 +265,7 @@ Public Sub GetSortSenderAddresses(ByRef mail As Outlook.MailItem, _
 
     On Error Resume Next
     entryId = mail.EntryID
-    On Error GoTo 0
+    Err.Clear
 
     If Len(entryId) > 0 And StrComp(entryId, m_SortSenderMailId, vbBinaryCompare) = 0 Then
         rootAddr = m_SortRootAddr
@@ -225,77 +273,106 @@ Public Sub GetSortSenderAddresses(ByRef mail As Outlook.MailItem, _
         Exit Sub
     End If
 
+    ' Always capture the current sender first, independent of conversation APIs.
     currentAddr = LCase$(Trim$(SenderAddress(mail)))
+    Err.Clear
 
-    Set rootMail = ConversationRootMail(mail)
-    If Not rootMail Is Nothing Then
-        rootAddr = LCase$(Trim$(SenderAddress(rootMail)))
-    End If
+    rootAddr = LCase$(Trim$(ConversationRootSenderAddress(mail)))
+    Err.Clear
 
     m_SortSenderMailId = entryId
     m_SortRootAddr = rootAddr
     m_SortCurrentAddr = currentAddr
 End Sub
 
-Private Function ConversationRootMail(ByRef mail As Outlook.MailItem) As Outlook.MailItem
+' SMTP address of the earliest mail in the conversation, or vbNullString.
+Private Function ConversationRootSenderAddress(ByRef mail As Outlook.MailItem) As String
     Dim parentFolder As Outlook.Folder
     Dim store As Outlook.Store
     Dim conv As Outlook.Conversation
+    Dim table As Outlook.Table
+    Dim row As Outlook.Row
     Dim roots As Outlook.SimpleItems
-    Dim item As Object
-    Dim candidate As Outlook.MailItem
-    Dim best As Outlook.MailItem
-    Dim bestTime As Date
-    Dim itemTime As Date
+    Dim rootItem As Object
+    Dim rootMail As Outlook.MailItem
+    Dim entryId As String
+    Dim msgClass As String
     Dim i As Long
 
-    Set ConversationRootMail = Nothing
+    ConversationRootSenderAddress = vbNullString
     If mail Is Nothing Then Exit Function
 
-    On Error Resume Next
+    On Error GoTo CleanExit
+
     Set parentFolder = mail.Parent
-    If parentFolder Is Nothing Then Exit Function
+    If parentFolder Is Nothing Then GoTo CleanExit
 
     Set store = parentFolder.Store
-    If store Is Nothing Then Exit Function
-    If Not store.IsConversationEnabled Then Exit Function
+    If store Is Nothing Then GoTo CleanExit
+    If Not store.IsConversationEnabled Then GoTo CleanExit
 
     Set conv = mail.GetConversation
-    If conv Is Nothing Then Exit Function
+    If conv Is Nothing Then GoTo CleanExit
 
+    ' GetTable is ordered by ConversationIndex — first IPM.Note is the root.
+    Set table = conv.GetTable
+    If Not table Is Nothing Then
+        On Error Resume Next
+        table.Columns.Add PR_STORE_ENTRYID
+        Err.Clear
+        On Error GoTo CleanExit
+
+        Do Until table.EndOfTable
+            Set row = table.GetNextRow
+            If row Is Nothing Then Exit Do
+
+            msgClass = CStr(row("MessageClass"))
+            If StrComp(Left$(msgClass, 8), "IPM.Note", vbTextCompare) = 0 Then
+                entryId = CStr(row("EntryID"))
+                Set rootItem = Nothing
+
+                On Error Resume Next
+                Set rootItem = Application.Session.GetItemFromID(entryId, row.BinaryToString(PR_STORE_ENTRYID))
+                If rootItem Is Nothing Then
+                    Set rootItem = Application.Session.GetItemFromID(entryId)
+                End If
+                Err.Clear
+                On Error GoTo CleanExit
+
+                If TypeOf rootItem Is Outlook.MailItem Then
+                    Set rootMail = rootItem
+                    ConversationRootSenderAddress = SenderAddress(rootMail)
+                End If
+                GoTo CleanExit
+            End If
+        Loop
+    End If
+
+    ' Fallback: GetRootItems (first MailItem among roots).
     Set roots = conv.GetRootItems
-    If roots Is Nothing Then Exit Function
-    If roots.Count = 0 Then Exit Function
+    If roots Is Nothing Then GoTo CleanExit
 
     For i = 1 To roots.Count
-        Set item = roots.Item(i)
-        Set candidate = Nothing
-        If TypeOf item Is Outlook.MailItem Then Set candidate = item
-        If candidate Is Nothing Then GoTo NextRoot
-
-        itemTime = candidate.ReceivedTime
-        If itemTime = 0 Then itemTime = candidate.SentOn
-
-        If best Is Nothing Then
-            Set best = candidate
-            bestTime = itemTime
-        ElseIf itemTime < bestTime Then
-            Set best = candidate
-            bestTime = itemTime
+        Set rootItem = roots.Item(i)
+        If TypeOf rootItem Is Outlook.MailItem Then
+            Set rootMail = rootItem
+            ConversationRootSenderAddress = SenderAddress(rootMail)
+            GoTo CleanExit
         End If
-NextRoot:
     Next i
 
-    Set ConversationRootMail = best
+CleanExit:
+    Err.Clear
 End Function
 
 Private Function SenderLocalPart(ByVal addr As String) As String
     Dim atPos As Long
+    addr = LCase$(Trim$(addr))
     atPos = InStr(1, addr, "@")
     If atPos = 0 Then
-        SenderLocalPart = LCase$(addr)
+        SenderLocalPart = addr
     Else
-        SenderLocalPart = LCase$(Left$(addr, atPos - 1))
+        SenderLocalPart = Left$(addr, atPos - 1)
     End If
 End Function
 
