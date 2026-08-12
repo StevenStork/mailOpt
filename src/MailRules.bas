@@ -155,36 +155,8 @@ Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPat
     folderPath = vbNullString
     MatchesMoveRule = False
 
-    ' ES Comms — username ceo.inc, or sender host prefix communications.es.
-    If SenderUserNameIs(mail, "ceo.inc") Or SenderStartsWith(mail, "communications.es") Then
-        folderPath = "\\BAE Comms\ES Comms"
-        MatchesMoveRule = True
-        Exit Function
-    End If
-
-    ' NHNA Comms — username sonashua.siteexecutive.
-    If SenderUserNameIs(mail, "sonashua.siteexecutive") Then
-        folderPath = "\\BAE Comms\NHNA Comms"
-        MatchesMoveRule = True
-        Exit Function
-    End If
-
     ' BAE Comms — sender mappings from sortComms text file.
     If SortRules.MatchCommsRule(mail, folderPath) Then
-        MatchesMoveRule = True
-        Exit Function
-    End If
-
-    ' Time Reporting — username autotime7.
-    If SenderUserNameIs(mail, "autotime7") Then
-        folderPath = "\\HR\Time Reporting"
-        MatchesMoveRule = True
-        Exit Function
-    End If
-
-    ' ServiceNow notifications — match sender host prefix (not body URLs).
-    If SenderStartsWith(mail, "servicenow.us") Then
-        folderPath = "\\Tickets\IT Tickets"
         MatchesMoveRule = True
         Exit Function
     End If
