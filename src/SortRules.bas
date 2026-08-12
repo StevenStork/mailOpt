@@ -7,55 +7,78 @@ Option Explicit
 
 Private Const SORT_RULES_FOLDER As String = "C:\mailOpt\sortRules\"
 
+Private Const SORT_COMMS_FILE As String = "sortComms"
+Private Const SORT_TICKETS_FILE As String = "sortTickets"
 Private Const SORT_PRODUCT_LINES_FILE As String = "sortProductLines"
+
+Private Const BAE_COMMS_PARENT As String = "\\BAE Comms"
+Private Const TICKETS_PARENT As String = "\\Tickets"
 Private Const PROGRAM_GROUPS_PARENT As String = "\\Program Groups"
 
+Private m_CommsRules As Object
+Private m_TicketsRules As Object
 Private m_ProductLineRules As Object
 
 '------------------------------------------------------------------------------
 ' Load / reload
 '------------------------------------------------------------------------------
 
-Public Sub LoadProductLineRules()
+Public Sub LoadAllSortRules()
+    Set m_CommsRules = LoadSortRulesFile(SORT_COMMS_FILE)
+    Set m_TicketsRules = LoadSortRulesFile(SORT_TICKETS_FILE)
     Set m_ProductLineRules = LoadSortRulesFile(SORT_PRODUCT_LINES_FILE)
 End Sub
 
 Public Sub ReloadAllSortRules()
-    LoadProductLineRules
+    LoadAllSortRules
 End Sub
 
 '------------------------------------------------------------------------------
-' Match — sender Email column → Program Groups\<Destination>
+' Match — sender Email column → parent\<Destination>
 '------------------------------------------------------------------------------
 
+Public Function MatchCommsRule(ByRef mail As Outlook.MailItem, ByRef folderPath As String) As Boolean
+    MatchCommsRule = MatchLoadedRules(mail, m_CommsRules, BAE_COMMS_PARENT, folderPath)
+End Function
+
+Public Function MatchTicketsRule(ByRef mail As Outlook.MailItem, ByRef folderPath As String) As Boolean
+    MatchTicketsRule = MatchLoadedRules(mail, m_TicketsRules, TICKETS_PARENT, folderPath)
+End Function
+
 Public Function MatchProductLineRule(ByRef mail As Outlook.MailItem, ByRef folderPath As String) As Boolean
+    MatchProductLineRule = MatchLoadedRules(mail, m_ProductLineRules, PROGRAM_GROUPS_PARENT, folderPath)
+End Function
+
+Private Function MatchLoadedRules(ByRef mail As Outlook.MailItem, ByRef rules As Object, _
+    ByVal parentFolder As String, ByRef folderPath As String) As Boolean
+
     Dim addr As String
     Dim userName As String
     Dim dest As String
 
     folderPath = vbNullString
-    MatchProductLineRule = False
+    MatchLoadedRules = False
 
-    If m_ProductLineRules Is Nothing Then Exit Function
-    If m_ProductLineRules.Count = 0 Then Exit Function
+    If rules Is Nothing Then Exit Function
+    If rules.Count = 0 Then Exit Function
 
     addr = LCase$(Trim$(MailRules.SenderAddress(mail)))
     userName = LCase$(SenderLocalPart(addr))
 
     If Len(addr) > 0 Then
-        If m_ProductLineRules.Exists(addr) Then
-            dest = m_ProductLineRules(addr)
-            folderPath = PROGRAM_GROUPS_PARENT & "\" & dest
-            MatchProductLineRule = True
+        If rules.Exists(addr) Then
+            dest = rules(addr)
+            folderPath = parentFolder & "\" & dest
+            MatchLoadedRules = True
             Exit Function
         End If
     End If
 
     If Len(userName) > 0 Then
-        If m_ProductLineRules.Exists(userName) Then
-            dest = m_ProductLineRules(userName)
-            folderPath = PROGRAM_GROUPS_PARENT & "\" & dest
-            MatchProductLineRule = True
+        If rules.Exists(userName) Then
+            dest = rules(userName)
+            folderPath = parentFolder & "\" & dest
+            MatchLoadedRules = True
             Exit Function
         End If
     End If

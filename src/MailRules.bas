@@ -36,7 +36,7 @@ Private Const MSG_MEETING_DECLINED As String = "IPM.Schedule.Meeting.Resp.Neg"
 '------------------------------------------------------------------------------
 
 Public Sub LoadRules()
-    SortRules.LoadProductLineRules
+    SortRules.LoadAllSortRules
 End Sub
 
 '------------------------------------------------------------------------------
@@ -169,6 +169,12 @@ Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPat
         Exit Function
     End If
 
+    ' BAE Comms — sender mappings from sortComms text file.
+    If SortRules.MatchCommsRule(mail, folderPath) Then
+        MatchesMoveRule = True
+        Exit Function
+    End If
+
     ' Time Reporting — username autotime7.
     If SenderUserNameIs(mail, "autotime7") Then
         folderPath = "\\HR\Time Reporting"
@@ -179,6 +185,12 @@ Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPat
     ' ServiceNow notifications — match sender host prefix (not body URLs).
     If SenderStartsWith(mail, "servicenow.us") Then
         folderPath = "\\Tickets\IT Tickets"
+        MatchesMoveRule = True
+        Exit Function
+    End If
+
+    ' Tickets — sender mappings from sortTickets text file.
+    If SortRules.MatchTicketsRule(mail, folderPath) Then
         MatchesMoveRule = True
         Exit Function
     End If
@@ -253,56 +265,6 @@ End Function
 
 Public Function SubjectContains(ByRef mail As Outlook.MailItem, ByVal needle As String) As Boolean
     SubjectContains = (InStr(1, mail.Subject, needle, vbTextCompare) > 0)
-End Function
-
-' Subject + plain body text used for content rules (lowercased).
-Private Function MailSearchText(ByRef mail As Outlook.MailItem) As String
-    Dim subject As String
-    Dim body As String
-
-    On Error Resume Next
-    subject = mail.Subject
-    body = mail.Body
-    On Error GoTo 0
-
-    MailSearchText = LCase$(subject & vbLf & body)
-End Function
-
-' Whole-phrase mention check against pre-lowercased search text.
-' Requires non-alphanumeric boundaries so short tokens like "CCA" / "MDF"
-' do not match inside longer words.
-Private Function MailMentions(ByVal searchText As String, ByVal phrase As String) As Boolean
-    Dim needle As String
-    Dim pos As Long
-    Dim beforeAsc As Long
-    Dim afterAsc As Long
-
-    needle = LCase$(Trim$(phrase))
-    If Len(searchText) = 0 Or Len(needle) = 0 Then Exit Function
-
-    pos = InStr(1, searchText, needle, vbBinaryCompare)
-    Do While pos > 0
-        beforeAsc = 0
-        afterAsc = 0
-        If pos > 1 Then beforeAsc = AscW(Mid$(searchText, pos - 1, 1))
-        If pos + Len(needle) <= Len(searchText) Then
-            afterAsc = AscW(Mid$(searchText, pos + Len(needle), 1))
-        End If
-
-        If Not IsAlphaNumericAsc(beforeAsc) And Not IsAlphaNumericAsc(afterAsc) Then
-            MailMentions = True
-            Exit Function
-        End If
-
-        pos = InStr(pos + 1, searchText, needle, vbBinaryCompare)
-    Loop
-End Function
-
-Private Function IsAlphaNumericAsc(ByVal code As Long) As Boolean
-    If code = 0 Then Exit Function
-    IsAlphaNumericAsc = (code >= 48 And code <= 57) Or _
-                        (code >= 65 And code <= 90) Or _
-                        (code >= 97 And code <= 122)
 End Function
 
 Public Function SenderAddress(ByRef mail As Outlook.MailItem) As String
