@@ -42,7 +42,7 @@ End Sub
 ' Evaluate any Outlook item (mail, meeting response, etc.)
 '
 ' Priority: meeting responses → meeting requests → sortComms → sortTickets
-'           → sortProductLines → other rules (delete, mark read)
+'           → sortProductLines → purchase request content rules
 '------------------------------------------------------------------------------
 
 Public Function EvaluateItem(ByRef item As Object) As MailAction
@@ -105,13 +105,8 @@ Public Function EvaluateItem(ByRef item As Object) As MailAction
 End Function
 
 '------------------------------------------------------------------------------
-' Evaluate a mail item against rules in priority order.
+' Evaluate a mail item against sort-file move rules.
 ' First matching rule wins. Return maNone when nothing matches.
-'
-' After meeting responses (handled in EvaluateItem):
-'   1. Move — sortComms, sortTickets, sortProductLines
-'   2. Delete
-'   3. Mark read only
 '------------------------------------------------------------------------------
 
 Public Function Evaluate(ByRef mail As Outlook.MailItem) As MailAction
@@ -121,31 +116,9 @@ Public Function Evaluate(ByRef mail As Outlook.MailItem) As MailAction
     result.FolderPath = vbNullString
     result.RuleName = vbNullString
 
-    '--- Priority 1: Move — sortComms, sortTickets, sortProductLines -----------
     If MatchesMoveRule(mail, result.FolderPath) Then
-        If MatchesMarkReadRule(mail) Then
-            result.ActionType = maMarkReadAndMove
-            result.RuleName = "MarkReadAndMove"
-        Else
-            result.ActionType = maMove
-            result.RuleName = "Move"
-        End If
-        Evaluate = result
-        Exit Function
-    End If
-
-    '--- Priority 2: Delete ---------------------------------------------------
-    If MatchesDeleteRule(mail) Then
-        result.ActionType = maDelete
-        result.RuleName = "Delete"
-        Evaluate = result
-        Exit Function
-    End If
-
-    '--- Priority 3: Mark read only -------------------------------------------
-    If MatchesMarkReadRule(mail) Then
-        result.ActionType = maMarkRead
-        result.RuleName = "MarkRead"
+        result.ActionType = maMove
+        result.RuleName = "Move"
         Evaluate = result
         Exit Function
     End If
@@ -154,17 +127,8 @@ Public Function Evaluate(ByRef mail As Outlook.MailItem) As MailAction
 End Function
 
 '==============================================================================
-' Rule matchers — replace stubs with real sender / subject / domain checks.
-' Keep each matcher focused on one concern so rules stay easy to extend.
+' Rule matchers
 '==============================================================================
-
-Private Function MatchesDeleteRule(ByRef mail As Outlook.MailItem) As Boolean
-    ' Example (disabled):
-    ' If InStr(1, LCase$(mail.SenderEmailAddress), "noreply-spam@example.com", vbTextCompare) > 0 Then
-    '     MatchesDeleteRule = True
-    ' End If
-    MatchesDeleteRule = False
-End Function
 
 Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPath As String) As Boolean
     folderPath = vbNullString
@@ -187,14 +151,6 @@ Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPat
         MatchesMoveRule = True
         Exit Function
     End If
-End Function
-
-Private Function MatchesMarkReadRule(ByRef mail As Outlook.MailItem) As Boolean
-    ' Example (disabled):
-    ' If InStr(1, LCase$(mail.SenderEmailAddress), "@notifications.example.com", vbTextCompare) > 0 Then
-    '     MatchesMarkReadRule = True
-    ' End If
-    MatchesMarkReadRule = False
 End Function
 
 '------------------------------------------------------------------------------
