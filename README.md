@@ -71,9 +71,9 @@ Use the **`AddSortRuleFromCurrentMail`** macro while a message is open or select
 1. Open (or select) the email whose sender you want to route.
 2. Press `Alt+F8`, choose `AddSortRuleFromCurrentMail`, click **Run**.
 3. Confirm/edit the sender email and display name.
-4. Choose which sort text file it belongs to (`sortComms`, `sortTickets`, or `sortProductLines`).
-5. Pick a destination from the dropdown of folders under that file’s parent (`\\BAE Comms`, `\\Tickets`, or `\\Program Groups`). You can also type a new folder name.
-6. Click **Save** — the row is added or updated in the text file and rules are reloaded.
+4. Choose the parent folder (`BAE Comms`, `Tickets`, or `Program Groups`).
+5. Pick a destination from the dropdown of folders under that parent. You can also type a new folder name; if it does not exist you will be asked whether to create it.
+6. Click **Save** — the matching sort text file is updated and rules are reloaded.
 
 **Immediate Window:**
 

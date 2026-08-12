@@ -28,8 +28,8 @@ Private lblSender As MSForms.Label
 Private WithEvents txtSender As MSForms.TextBox
 Private lblName As MSForms.Label
 Private WithEvents txtName As MSForms.TextBox
-Private lblSortFile As MSForms.Label
-Private WithEvents cboSortFile As MSForms.ComboBox
+Private lblParentFolder As MSForms.Label
+Private WithEvents cboParentFolder As MSForms.ComboBox
 Private lblDestination As MSForms.Label
 Private WithEvents cboDestination As MSForms.ComboBox
 Private lblHint As MSForms.Label
@@ -55,11 +55,11 @@ End Sub
 
 Private Sub UserForm_Initialize()
     EnsureControls
-    PopulateSortFiles
+    PopulateParentFolders
 End Sub
 
 Private Sub EnsureControls()
-    If Not cboSortFile Is Nothing Then Exit Sub
+    If Not cboParentFolder Is Nothing Then Exit Sub
 
     m_Building = True
 
@@ -89,19 +89,19 @@ Private Sub EnsureControls()
     txtName.Width = 198
     txtName.Height = 20
 
-    Set lblSortFile = Me.Controls.Add("Forms.Label.1", "lblSortFile", True)
-    lblSortFile.Caption = "Sort text file"
-    lblSortFile.Left = 12
-    lblSortFile.Top = 72
-    lblSortFile.Width = 90
-    lblSortFile.Height = 18
+    Set lblParentFolder = Me.Controls.Add("Forms.Label.1", "lblParentFolder", True)
+    lblParentFolder.Caption = "Parent folder"
+    lblParentFolder.Left = 12
+    lblParentFolder.Top = 72
+    lblParentFolder.Width = 90
+    lblParentFolder.Height = 18
 
-    Set cboSortFile = Me.Controls.Add("Forms.ComboBox.1", "cboSortFile", True)
-    cboSortFile.Left = 108
-    cboSortFile.Top = 70
-    cboSortFile.Width = 198
-    cboSortFile.Height = 20
-    cboSortFile.Style = fmStyleDropDownList
+    Set cboParentFolder = Me.Controls.Add("Forms.ComboBox.1", "cboParentFolder", True)
+    cboParentFolder.Left = 108
+    cboParentFolder.Top = 70
+    cboParentFolder.Width = 198
+    cboParentFolder.Height = 20
+    cboParentFolder.Style = fmStyleDropDownList
 
     Set lblDestination = Me.Controls.Add("Forms.Label.1", "lblDestination", True)
     lblDestination.Caption = "Destination folder"
@@ -119,7 +119,7 @@ Private Sub EnsureControls()
     cboDestination.Enabled = False
 
     Set lblHint = Me.Controls.Add("Forms.Label.1", "lblHint", True)
-    lblHint.Caption = "Destination lists folders under the parent for the selected sort file. You can also type a new folder name."
+    lblHint.Caption = "Destination lists folders under the selected parent. You can also type a new folder name."
     lblHint.Left = 12
     lblHint.Top = 132
     lblHint.Width = 294
@@ -147,22 +147,22 @@ Private Sub EnsureControls()
     m_Building = False
 End Sub
 
-Private Sub PopulateSortFiles()
+Private Sub PopulateParentFolders()
     Dim files As Variant
     Dim i As Long
 
     m_Building = True
-    cboSortFile.Clear
+    cboParentFolder.Clear
     files = SortRules.SortFileNames()
     For i = LBound(files) To UBound(files)
-        cboSortFile.AddItem SortRules.SortFileDisplayLabel(CStr(files(i)))
+        cboParentFolder.AddItem SortRules.ParentFolderDisplayName(CStr(files(i)))
     Next i
     cboDestination.Clear
     cboDestination.Enabled = False
     m_Building = False
 End Sub
 
-Private Sub cboSortFile_Change()
+Private Sub cboParentFolder_Change()
     If m_Building Then Exit Sub
     PopulateDestinationFolders
 End Sub
@@ -176,7 +176,7 @@ Private Sub PopulateDestinationFolders()
     cboDestination.Clear
     cboDestination.Enabled = False
 
-    fileName = SortRules.SortFileNameFromDisplayLabel(cboSortFile.Text)
+    fileName = SortRules.SortFileNameFromParentDisplay(cboParentFolder.Text)
     If Len(fileName) = 0 Then Exit Sub
 
     parentPath = SortRules.ParentFolderForSortFile(fileName)
@@ -197,13 +197,18 @@ End Sub
 
 Private Sub btnSave_Click()
     Dim fileName As String
+    Dim parentDisplay As String
+    Dim parentPath As String
+    Dim destPath As String
     Dim email As String
     Dim destination As String
     Dim displayName As String
+    Dim answer As VbMsgBoxResult
 
     email = Trim$(txtSender.Text)
     displayName = Trim$(txtName.Text)
-    fileName = SortRules.SortFileNameFromDisplayLabel(cboSortFile.Text)
+    parentDisplay = Trim$(cboParentFolder.Text)
+    fileName = SortRules.SortFileNameFromParentDisplay(parentDisplay)
     destination = Trim$(cboDestination.Text)
 
     If Len(email) = 0 Then
@@ -213,8 +218,8 @@ Private Sub btnSave_Click()
     End If
 
     If Len(fileName) = 0 Then
-        MsgBox "Choose which sort text file this sender belongs to.", vbExclamation, Me.Caption
-        cboSortFile.SetFocus
+        MsgBox "Choose a parent folder.", vbExclamation, Me.Caption
+        cboParentFolder.SetFocus
         Exit Sub
     End If
 
@@ -224,13 +229,32 @@ Private Sub btnSave_Click()
         Exit Sub
     End If
 
+    parentPath = SortRules.ParentFolderForSortFile(fileName)
+    destPath = parentPath & "\" & destination
+
+    If Not FolderHelpers.FolderExists(destPath) Then
+        answer = MsgBox( _
+            "The folder """ & destination & """ does not exist under " & parentDisplay & "." & vbCrLf & _
+            "Create it?", _
+            vbYesNo + vbQuestion, Me.Caption)
+        If answer <> vbYes Then
+            cboDestination.SetFocus
+            Exit Sub
+        End If
+
+        If FolderHelpers.GetOrCreateFolder(destPath) Is Nothing Then
+            MsgBox "Could not create the folder """ & destination & """.", vbCritical, Me.Caption
+            Exit Sub
+        End If
+    End If
+
     If Not SortRules.UpsertSortRule(fileName, email, destination, displayName) Then
-        MsgBox "Could not update the sort file. Check that C:\mailOpt\sortRules\ is writable.", _
+        MsgBox "Could not update the sort rules. Check that C:\mailOpt\sortRules\ is writable.", _
                vbCritical, Me.Caption
         Exit Sub
     End If
 
-    MsgBox "Saved " & email & " -> " & destination & " in " & fileName & ".", _
+    MsgBox "Saved " & email & " -> " & destination & " under " & parentDisplay & ".", _
            vbInformation, Me.Caption
     Me.Hide
 End Sub

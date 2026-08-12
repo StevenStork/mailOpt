@@ -55,25 +55,35 @@ Public Function ParentFolderForSortFile(ByVal fileName As String) As String
     End Select
 End Function
 
-' e.g. "sortComms - \\BAE Comms"
-Public Function SortFileDisplayLabel(ByVal fileName As String) As String
-    Dim parent As String
-    parent = ParentFolderForSortFile(fileName)
-    If Len(parent) = 0 Then
-        SortFileDisplayLabel = fileName
-    Else
-        SortFileDisplayLabel = fileName & " - " & parent
-    End If
+' Parent folder name for UI dropdowns (e.g. "BAE Comms"), no \\ prefix.
+Public Function ParentFolderDisplayName(ByVal fileName As String) As String
+    ParentFolderDisplayName = StripRootPrefix(ParentFolderForSortFile(fileName))
 End Function
 
-' Extract the base file name from a display label ("sortComms - \\BAE Comms").
-Public Function SortFileNameFromDisplayLabel(ByVal label As String) As String
-    Dim dashPos As Long
-    dashPos = InStr(1, label, " - ")
-    If dashPos > 0 Then
-        SortFileNameFromDisplayLabel = Trim$(Left$(label, dashPos - 1))
+' Map a parent display name ("BAE Comms" or "\\BAE Comms") back to sortComms / etc.
+Public Function SortFileNameFromParentDisplay(ByVal displayName As String) As String
+    Dim files As Variant
+    Dim i As Long
+    Dim candidate As String
+
+    displayName = StripRootPrefix(Trim$(displayName))
+    If Len(displayName) = 0 Then Exit Function
+
+    files = SortFileNames()
+    For i = LBound(files) To UBound(files)
+        candidate = ParentFolderDisplayName(CStr(files(i)))
+        If StrComp(candidate, displayName, vbTextCompare) = 0 Then
+            SortFileNameFromParentDisplay = CStr(files(i))
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function StripRootPrefix(ByVal folderPath As String) As String
+    If Left$(folderPath, 2) = "\\" Then
+        StripRootPrefix = Mid$(folderPath, 3)
     Else
-        SortFileNameFromDisplayLabel = Trim$(label)
+        StripRootPrefix = folderPath
     End If
 End Function
 
