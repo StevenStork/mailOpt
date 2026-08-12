@@ -41,8 +41,9 @@ End Sub
 '------------------------------------------------------------------------------
 ' Evaluate any Outlook item (mail, meeting response, etc.)
 '
-' Priority: meeting responses → meeting requests → sortComms → sortTickets
-'           → sortProductLines → purchase request content rules
+' Priority: meeting responses → meeting requests → out of office
+'           → sortComms → sortTickets → sortProductLines
+'           → purchase request content rules
 '------------------------------------------------------------------------------
 
 Public Function EvaluateItem(ByRef item As Object) As MailAction
@@ -96,6 +97,14 @@ Public Function EvaluateItem(ByRef item As Object) As MailAction
             EvaluateItem = result
             Exit Function
     End Select
+
+    If IsOutOfOfficeItem(item, msgClass) Then
+        result.ActionType = maMove
+        result.FolderPath = "Out of Office"
+        result.RuleName = "OutOfOffice"
+        EvaluateItem = result
+        Exit Function
+    End If
 
     If TypeOf item Is Outlook.MailItem Then
         EvaluateItem = Evaluate(item)
@@ -151,6 +160,101 @@ Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPat
         MatchesMoveRule = True
         Exit Function
     End If
+
+    ' Purchase Requests — subject/body mentions MPR ID or Manual Purchase Requisition.
+    If MatchesPurchaseRequestRule(mail) Then
+        folderPath = "\\Tickets\Purchase Requests"
+        MatchesMoveRule = True
+        Exit Function
+    End If
+End Function
+
+Private Function MatchesPurchaseRequestRule(ByRef mail As Outlook.MailItem) As Boolean
+    MatchesPurchaseRequestRule = MailContainsPhrase(mail, "MPR ID") Or _
+                                 MailContainsPhrase(mail, "Manual Purchase Requisition")
+End Function
+
+' Broad Out of Office / automatic-reply detection (message class + subject/body cues).
+Private Function IsOutOfOfficeItem(ByRef item As Object, ByVal msgClass As String) As Boolean
+    Dim subject As String
+    Dim body As String
+    Dim text As String
+    Dim autoSubmitted As String
+
+    IsOutOfOfficeItem = False
+    If item Is Nothing Then Exit Function
+
+    If InStr(1, msgClass, "Oof", vbTextCompare) > 0 Or _
+       InStr(1, msgClass, "OOF", vbTextCompare) > 0 Then
+        IsOutOfOfficeItem = True
+        Exit Function
+    End If
+
+    On Error Resume Next
+    subject = item.Subject
+    body = item.Body
+    autoSubmitted = item.PropertyAccessor.GetProperty( _
+        "http://schemas.microsoft.com/mapi/proptag/0x007D001F")
+    If Len(autoSubmitted) = 0 Then
+        autoSubmitted = item.PropertyAccessor.GetProperty( _
+            "http://schemas.microsoft.com/mapi/proptag/0x007D001E")
+    End If
+    On Error GoTo 0
+
+    If InStr(1, autoSubmitted, "Auto-Submitted:", vbTextCompare) > 0 Then
+        If InStr(1, autoSubmitted, "auto-replied", vbTextCompare) > 0 Or _
+           InStr(1, autoSubmitted, "auto-generated", vbTextCompare) > 0 Then
+            If LooksLikeOutOfOfficeText(subject) Or LooksLikeOutOfOfficeText(Left$(body, 500)) Then
+                IsOutOfOfficeItem = True
+                Exit Function
+            End If
+        End If
+    End If
+
+    If LooksLikeOutOfOfficeText(subject) Then
+        IsOutOfOfficeItem = True
+        Exit Function
+    End If
+
+    ' Catch replies whose subject is generic but body leads with an OOO notice.
+    text = Left$(body, 800)
+    If LooksLikeOutOfOfficeText(text) Then
+        IsOutOfOfficeItem = True
+    End If
+End Function
+
+Private Function LooksLikeOutOfOfficeText(ByVal text As String) As Boolean
+    Dim t As String
+    t = LCase$(Trim$(text))
+    If Len(t) = 0 Then Exit Function
+
+    LooksLikeOutOfOfficeText = _
+        (InStr(1, t, "out of office", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "out of the office", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "out-of-office", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "automatic reply", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "auto-reply", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "auto reply", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "autoreply", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "auto response", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "auto-response", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "away from the office", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "away from office", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "currently out of the office", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "currently out of office", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "i am currently out", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "i'm currently out", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "i will be out of the office", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "i will be out of office", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "i am out of the office", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "i am out of office", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "i'm out of the office", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "i'm out of office", vbBinaryCompare) > 0) Or _
+        (Left$(t, 4) = "ooo:") Or _
+        (Left$(t, 4) = "ooo ") Or _
+        (Left$(t, 4) = "ooo-") Or _
+        (InStr(1, t, "[ooo]", vbBinaryCompare) > 0) Or _
+        (InStr(1, t, "(ooo)", vbBinaryCompare) > 0)
 End Function
 
 '------------------------------------------------------------------------------
@@ -161,6 +265,23 @@ Public Function SenderContains(ByRef mail As Outlook.MailItem, ByVal needle As S
     Dim addr As String
     addr = SenderAddress(mail)
     SenderContains = (InStr(1, addr, needle, vbTextCompare) > 0)
+End Function
+
+' True when subject or plain body contains `phrase` (case-insensitive).
+Public Function MailContainsPhrase(ByRef mail As Outlook.MailItem, ByVal phrase As String) As Boolean
+    Dim subject As String
+    Dim body As String
+
+    phrase = Trim$(phrase)
+    If Len(phrase) = 0 Then Exit Function
+
+    On Error Resume Next
+    subject = mail.Subject
+    body = mail.Body
+    On Error GoTo 0
+
+    MailContainsPhrase = (InStr(1, subject, phrase, vbTextCompare) > 0) Or _
+                         (InStr(1, body, phrase, vbTextCompare) > 0)
 End Function
 
 ' True when the local part (before @) equals `userName` (case-insensitive).
