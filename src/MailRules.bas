@@ -29,6 +29,7 @@ End Type
 Private Const MSG_MEETING_ACCEPTED As String = "IPM.Schedule.Meeting.Resp.Pos"
 Private Const MSG_MEETING_TENTATIVE As String = "IPM.Schedule.Meeting.Resp.Tent"
 Private Const MSG_MEETING_DECLINED As String = "IPM.Schedule.Meeting.Resp.Neg"
+Private Const MSG_MEETING_REQUEST As String = "IPM.Schedule.Meeting.Request"
 
 '------------------------------------------------------------------------------
 ' Load / refresh rule configuration
@@ -99,6 +100,11 @@ End Function
 '------------------------------------------------------------------------------
 ' Evaluate a mail item against rules in priority order.
 ' First matching rule wins. Return maNone when nothing matches.
+'
+' After meeting responses (handled in EvaluateItem):
+'   1. Move — sortComms, sortTickets, sortProductLines
+'   2. Delete
+'   3. Mark read only
 '------------------------------------------------------------------------------
 
 Public Function Evaluate(ByRef mail As Outlook.MailItem) As MailAction
@@ -108,15 +114,7 @@ Public Function Evaluate(ByRef mail As Outlook.MailItem) As MailAction
     result.FolderPath = vbNullString
     result.RuleName = vbNullString
 
-    '--- Priority 1: Delete ---------------------------------------------------
-    If MatchesDeleteRule(mail) Then
-        result.ActionType = maDelete
-        result.RuleName = "Delete"
-        Evaluate = result
-        Exit Function
-    End If
-
-    '--- Priority 2: Move (optionally mark read) ------------------------------
+    '--- Priority 1: Move — sortComms, sortTickets, sortProductLines -----------
     If MatchesMoveRule(mail, result.FolderPath) Then
         If MatchesMarkReadRule(mail) Then
             result.ActionType = maMarkReadAndMove
@@ -125,6 +123,14 @@ Public Function Evaluate(ByRef mail As Outlook.MailItem) As MailAction
             result.ActionType = maMove
             result.RuleName = "Move"
         End If
+        Evaluate = result
+        Exit Function
+    End If
+
+    '--- Priority 2: Delete ---------------------------------------------------
+    If MatchesDeleteRule(mail) Then
+        result.ActionType = maDelete
+        result.RuleName = "Delete"
         Evaluate = result
         Exit Function
     End If
