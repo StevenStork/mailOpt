@@ -1,6 +1,6 @@
 # mailOpt
 
-Outlook VBA framework that processes mail when Outlook starts and when new messages arrive. Built to filter mail into folders, mark unimportant messages as read, and delete noise — rules start as safe stubs so nothing is changed until you add conditions.
+Outlook VBA framework that processes mail when Outlook starts and when new messages arrive. Built to filter mail into folders and organize meeting-related items automatically.
 
 ## Architecture
 
@@ -8,7 +8,7 @@ Outlook VBA framework that processes mail when Outlook starts and when new messa
 |---|---|
 | `ThisOutlookSession` | Wires `Application_Startup`, `Application_NewMailEx`, and `Application_Quit` |
 | `MailProcessor` | Startup scan, on-demand full-mailbox run, per-item pipeline |
-| `MailRules` | Rule evaluation (meeting responses, delete → move → mark read / flag) |
+| `MailRules` | Rule evaluation (meeting responses/requests, move, flag) |
 | `SortRules` | File-based sender routing from sort text files |
 | `FolderHelpers` | Resolve / create folders under the Inbox |
 
@@ -16,8 +16,8 @@ Flow:
 
 1. Outlook opens → `Application_Startup` → `MailProcessor.Initialize` → scan unread items in all mail folders
 2. New mail arrives → `Application_NewMailEx` → resolve each EntryID → `ProcessOutlookItem`
-3. `MailRules.EvaluateItem` returns an action → move / mark read / delete / flag / none
-4. On demand → `MailProcessor.RunAllFilters` processes every item in every mail folder
+3. `MailRules.EvaluateItem` returns an action → move / mark read & move / flag / none
+4. On demand → `MailProcessor.SortAllEmails` processes every item in every mail folder
 
 ## Install in Outlook
 

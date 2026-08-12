@@ -151,18 +151,11 @@ Public Sub ProcessOutlookItem(ByRef item As Object)
         Case maNone
             ' No matching rule — leave the item alone.
 
-        Case maMarkRead
-            item.UnRead = False
-            item.Save
-
         Case maMove
             Set targetFolder = FolderHelpers.GetOrCreateFolder(action.FolderPath)
             If Not targetFolder Is Nothing Then
                 item.Move targetFolder
             End If
-
-        Case maDelete
-            item.Delete
 
         Case maMarkReadAndMove
             item.UnRead = False

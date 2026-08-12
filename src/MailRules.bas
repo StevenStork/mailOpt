@@ -13,11 +13,9 @@ Option Explicit
 
 Public Enum MailActionType
     maNone = 0
-    maMarkRead = 1
-    maMove = 2
-    maDelete = 3
-    maMarkReadAndMove = 4
-    maFlag = 5
+    maMove = 1
+    maMarkReadAndMove = 2
+    maFlag = 3
 End Enum
 
 Public Type MailAction
@@ -43,8 +41,8 @@ End Sub
 '------------------------------------------------------------------------------
 ' Evaluate any Outlook item (mail, meeting response, etc.)
 '
-' Priority: meeting responses → sortComms → sortTickets → sortProductLines
-'           → other rules (delete, mark read)
+' Priority: meeting responses → meeting requests → sortComms → sortTickets
+'           → sortProductLines → other rules (delete, mark read)
 '------------------------------------------------------------------------------
 
 Public Function EvaluateItem(ByRef item As Object) As MailAction
@@ -86,6 +84,15 @@ Public Function EvaluateItem(ByRef item As Object) As MailAction
         Case 0
             result.ActionType = maFlag
             result.RuleName = "MeetingDeclined"
+            EvaluateItem = result
+            Exit Function
+    End Select
+
+    Select Case StrComp(msgClass, MSG_MEETING_REQUEST, vbTextCompare)
+        Case 0
+            result.ActionType = maMove
+            result.FolderPath = "Meeting Requests"
+            result.RuleName = "MeetingRequest"
             EvaluateItem = result
             Exit Function
     End Select
