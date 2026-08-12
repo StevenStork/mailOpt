@@ -31,7 +31,7 @@ Flow:
 4. Import the UserForm:
    - **File → Import File…** → select `frmAddSortRule.frm`
    - If a broken `frmAddSortRule` already exists in the project, remove it first (right-click → Remove), then import again.
-   - The form builds its controls in code (`cboSortFile` is the sort-file dropdown). No `.frx` designer file is required.
+   - The form builds its controls in code (`cboParentFolder` is the parent-folder dropdown). No `.frx` designer file is required.
 5. Set `SORT_RULES_FOLDER` in `SortRules.bas` to the folder containing your sort text files (`sortComms`, `sortProductLines`, `sortTickets`).
 6. Copy your sort files into that folder (tab- or comma-delimited: `Email`, `Destination`, `Name`).
 7. Open **Microsoft Outlook Objects → ThisOutlookSession** and paste the body from `src/ThisOutlookSession.cls` (skip the `VERSION` / `Attribute` header lines — paste from `Option Explicit` downward).
