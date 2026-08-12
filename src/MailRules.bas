@@ -36,6 +36,7 @@ Private Const MSG_MEETING_DECLINED As String = "IPM.Schedule.Meeting.Resp.Neg"
 '------------------------------------------------------------------------------
 
 Public Sub LoadRules()
+    SortRules.LoadProductLineRules
     Logger.Log "MailRules loaded."
 End Sub
 
@@ -179,6 +180,12 @@ Private Function MatchesMoveRule(ByRef mail As Outlook.MailItem, ByRef folderPat
     ' ServiceNow notifications — match sender host prefix (not body URLs).
     If SenderStartsWith(mail, "servicenow.us") Then
         folderPath = "\\Tickets\IT Tickets"
+        MatchesMoveRule = True
+        Exit Function
+    End If
+
+    ' Program Groups — sender mappings from sortProductLines text file.
+    If SortRules.MatchProductLineRule(mail, folderPath) Then
         MatchesMoveRule = True
         Exit Function
     End If

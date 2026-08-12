@@ -24,10 +24,12 @@ Flow:
 1. Open Outlook → press `Alt+F11` to open the VBA editor.
 2. Enable macros: **File → Options → Trust Center → Trust Center Settings → Macro Settings** → choose *Notifications for all macros* or *Enable all macros* (prefer signed macros in production).
 3. Import the standard modules from `src/`:
-   - **File → Import File…** → select `MailProcessor.bas`, `MailRules.bas`, `FolderHelpers.bas`, `Logger.bas`
-4. Open **Microsoft Outlook Objects → ThisOutlookSession** and paste the body from `src/ThisOutlookSession.cls` (skip the `VERSION` / `Attribute` header lines — paste from `Option Explicit` downward).
-5. Save the VBA project (`Ctrl+S`). Restart Outlook.
-6. Confirm in the Immediate Window (`Ctrl+G`) that you see: `Outlook started — mail framework initialized.`
+   - **File → Import File…** → select `MailProcessor.bas`, `MailRules.bas`, `SortRules.bas`, `FolderHelpers.bas`, `Logger.bas`
+4. Set `SORT_RULES_FOLDER` in `SortRules.bas` to the folder containing your sort text files (`sortComms`, `sortProductLines`, `sortTickets`).
+5. Copy your sort files into that folder (tab- or comma-delimited: `Email`, `Destination`, `Name`).
+6. Open **Microsoft Outlook Objects → ThisOutlookSession** and paste the body from `src/ThisOutlookSession.cls` (skip the `VERSION` / `Attribute` header lines — paste from `Option Explicit` downward).
+7. Save the VBA project (`Ctrl+S`). Restart Outlook.
+8. Confirm in the Immediate Window (`Ctrl+G`) that you see: `Outlook started — mail framework initialized.`
 
 ## Adding rules
 
