@@ -41,7 +41,9 @@ End Sub
 
 '------------------------------------------------------------------------------
 ' Evaluate any Outlook item (mail, meeting response, etc.)
-' Meeting-response rules run first; remaining mail uses Evaluate.
+'
+' Priority: meeting responses → sortComms → sortTickets → sortProductLines
+'           → other rules (delete, mark read)
 '------------------------------------------------------------------------------
 
 Public Function EvaluateItem(ByRef item As Object) As MailAction
