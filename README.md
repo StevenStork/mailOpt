@@ -9,8 +9,8 @@ Outlook VBA framework that processes mail when Outlook starts and when new messa
 | `ThisOutlookSession` | Wires `Application_Startup`, `Application_NewMailEx`, and `Application_Quit` |
 | `MailProcessor` | Startup scan, on-demand inbox run, per-item pipeline |
 | `MailRules` | Rule evaluation (meeting responses, delete → move → mark read / flag) |
+| `SortRules` | File-based sender routing from sort text files |
 | `FolderHelpers` | Resolve / create folders under the Inbox |
-| `Logger` | Writes to the Immediate Window (`Ctrl+G`); optional file log |
 
 Flow:
 
@@ -24,12 +24,11 @@ Flow:
 1. Open Outlook → press `Alt+F11` to open the VBA editor.
 2. Enable macros: **File → Options → Trust Center → Trust Center Settings → Macro Settings** → choose *Notifications for all macros* or *Enable all macros* (prefer signed macros in production).
 3. Import the standard modules from `src/`:
-   - **File → Import File…** → select `MailProcessor.bas`, `MailRules.bas`, `SortRules.bas`, `FolderHelpers.bas`, `Logger.bas`
+   - **File → Import File…** → select `MailProcessor.bas`, `MailRules.bas`, `SortRules.bas`, `FolderHelpers.bas`
 4. Set `SORT_RULES_FOLDER` in `SortRules.bas` to the folder containing your sort text files (`sortComms`, `sortProductLines`, `sortTickets`).
 5. Copy your sort files into that folder (tab- or comma-delimited: `Email`, `Destination`, `Name`).
 6. Open **Microsoft Outlook Objects → ThisOutlookSession** and paste the body from `src/ThisOutlookSession.cls` (skip the `VERSION` / `Attribute` header lines — paste from `Option Explicit` downward).
 7. Save the VBA project (`Ctrl+S`). Restart Outlook.
-8. Confirm in the Immediate Window (`Ctrl+G`) that you see: `Outlook started — mail framework initialized.`
 
 ## Adding rules
 
@@ -56,4 +55,3 @@ Or call that same public sub from a Quick Access Toolbar / ribbon macro button.
 
 - Add more conditions in `MailRules`
 - Optionally expand the startup scan beyond unread mail
-- Optionally enable file logging in `Logger` (`ENABLE_FILE_LOG`)

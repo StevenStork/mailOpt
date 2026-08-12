@@ -19,8 +19,6 @@ Public Sub Initialize()
     Set m_Inbox = FolderHelpers.GetDefaultInbox()
     MailRules.LoadRules
     m_Initialized = True
-
-    Logger.Log "MailProcessor initialized."
 End Sub
 
 Public Sub Shutdown()
@@ -43,13 +41,9 @@ Public Sub RunInboxFilters()
     Set items = m_Inbox.Items
     items.Sort "[ReceivedTime]", True
 
-    Logger.Log "Manual inbox run: " & items.Count & " item(s)."
-
     For i = items.Count To 1 Step -1
         ProcessOutlookItem items(i)
     Next i
-
-    Logger.Log "Manual inbox run complete."
 End Sub
 
 '------------------------------------------------------------------------------
@@ -64,8 +58,6 @@ Public Sub ProcessInboxOnStartup()
 
     Set items = m_Inbox.Items.Restrict("[Unread] = true")
     items.Sort "[ReceivedTime]", True
-
-    Logger.Log "Startup scan: " & items.Count & " unread item(s)."
 
     For i = items.Count To 1 Step -1
         ProcessOutlookItem items(i)
@@ -123,18 +115,15 @@ Public Sub ProcessOutlookItem(ByRef item As Object)
         Case maMarkRead
             item.UnRead = False
             item.Save
-            Logger.Log "Marked read: " & ItemSubject(item)
 
         Case maMove
             Set targetFolder = FolderHelpers.GetOrCreateFolder(action.FolderPath)
             If Not targetFolder Is Nothing Then
                 item.Move targetFolder
-                Logger.Log "Moved to [" & action.FolderPath & "]: " & ItemSubject(item)
             End If
 
         Case maDelete
             item.Delete
-            Logger.Log "Deleted: " & ItemSubject(item)
 
         Case maMarkReadAndMove
             item.UnRead = False
@@ -142,18 +131,11 @@ Public Sub ProcessOutlookItem(ByRef item As Object)
             Set targetFolder = FolderHelpers.GetOrCreateFolder(action.FolderPath)
             If Not targetFolder Is Nothing Then
                 item.Move targetFolder
-                Logger.Log "Marked read & moved to [" & action.FolderPath & "]: " & ItemSubject(item)
             End If
 
         Case maFlag
             item.FlagStatus = olFlagMarked
             item.FlagRequest = "Follow up"
             item.Save
-            Logger.Log "Flagged: " & ItemSubject(item)
     End Select
 End Sub
-
-Private Function ItemSubject(ByRef item As Object) As String
-    On Error Resume Next
-    ItemSubject = item.Subject
-End Function

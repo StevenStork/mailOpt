@@ -51,7 +51,6 @@ Public Function GetOrCreateFolder(ByVal folderPath As String) As Outlook.Folder
 
         If child Is Nothing Then
             Set child = parent.Folders.Add(name)
-            Logger.Log "Created folder: " & name
         End If
 
         Set parent = child

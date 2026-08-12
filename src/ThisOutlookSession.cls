@@ -17,32 +17,19 @@ Attribute VB_Exposed = True
 Option Explicit
 
 Private Sub Application_Startup()
-    On Error GoTo ErrHandler
-
+    On Error Resume Next
     MailProcessor.Initialize
     MailProcessor.ProcessInboxOnStartup
-
-    Logger.Log "Outlook started — mail framework initialized."
-    Exit Sub
-
-ErrHandler:
-    Logger.LogError "Application_Startup", Err.Number, Err.Description
 End Sub
 
 ' Fires when one or more new items arrive. EntryIDCollection is a comma-
 ' separated list of EntryIDs (may include non-mail items).
 Private Sub Application_NewMailEx(ByVal EntryIDCollection As String)
-    On Error GoTo ErrHandler
-
+    On Error Resume Next
     MailProcessor.ProcessNewMail EntryIDCollection
-    Exit Sub
-
-ErrHandler:
-    Logger.LogError "Application_NewMailEx", Err.Number, Err.Description
 End Sub
 
 Private Sub Application_Quit()
     On Error Resume Next
     MailProcessor.Shutdown
-    Logger.Log "Outlook quitting — mail framework shut down."
 End Sub

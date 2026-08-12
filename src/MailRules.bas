@@ -37,7 +37,6 @@ Private Const MSG_MEETING_DECLINED As String = "IPM.Schedule.Meeting.Resp.Neg"
 
 Public Sub LoadRules()
     SortRules.LoadProductLineRules
-    Logger.Log "MailRules loaded."
 End Sub
 
 '------------------------------------------------------------------------------

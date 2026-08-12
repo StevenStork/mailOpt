@@ -18,7 +18,6 @@ Private m_ProductLineRules As Object
 
 Public Sub LoadProductLineRules()
     Set m_ProductLineRules = LoadSortRulesFile(SORT_PRODUCT_LINES_FILE)
-    Logger.Log "Product line sort rules loaded: " & RuleCount(m_ProductLineRules) & " entr(y/ies)."
 End Sub
 
 Public Sub ReloadAllSortRules()
@@ -81,7 +80,6 @@ Private Function LoadSortRulesFile(ByVal fileName As String) As Object
 
     filePath = ResolveSortRulesFilePath(fileName)
     If Len(filePath) = 0 Then
-        Logger.LogError "LoadSortRulesFile", 0, "Sort rules file not found: " & fileName
         Set LoadSortRulesFile = dict
         Exit Function
     End If
@@ -173,9 +171,4 @@ Private Function SenderLocalPart(ByVal addr As String) As String
     Else
         SenderLocalPart = Left$(addr, atPos - 1)
     End If
-End Function
-
-Private Function RuleCount(ByRef dict As Object) As Long
-    On Error Resume Next
-    RuleCount = dict.Count
 End Function
