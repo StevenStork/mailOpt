@@ -14,16 +14,14 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 '==============================================================================
 ' frmAddSortRule
-' Map the current mail's sender into a sort text file + destination folder.
-'
-' Controls are created at runtime (no .frx / designer controls required).
+' Map the current mail's sender into a sort file + destination folder.
+' Controls are created at runtime (no .frx required).
 '==============================================================================
 Option Explicit
 
 Private Const fmStyleDropDownCombo As Long = 0
 Private Const fmStyleDropDownList As Long = 2
 
-' Runtime controls — WithEvents so Change/Click handlers work.
 Private lblSender As MSForms.Label
 Private WithEvents txtSender As MSForms.TextBox
 Private lblName As MSForms.Label
@@ -39,17 +37,15 @@ Private WithEvents btnCancel As MSForms.CommandButton
 Private m_Building As Boolean
 
 Public Sub LoadFromMail(ByRef mail As Outlook.MailItem)
-    Dim senderAddr As String
     Dim senderName As String
 
     EnsureControls
 
-    senderAddr = Trim$(MailRules.SenderAddress(mail))
     On Error Resume Next
     senderName = Trim$(mail.SenderName)
     On Error GoTo 0
 
-    txtSender.Text = senderAddr
+    txtSender.Text = Trim$(MailRules.SenderAddress(mail))
     txtName.Text = senderName
 End Sub
 
@@ -153,9 +149,9 @@ Private Sub PopulateParentFolders()
 
     m_Building = True
     cboParentFolder.Clear
-    files = SortRules.SortFileNames()
+    files = MailRules.SortFileNames()
     For i = LBound(files) To UBound(files)
-        cboParentFolder.AddItem DisplayNameForSortFile(CStr(files(i)))
+        cboParentFolder.AddItem MailRules.ParentFolderDisplayName(CStr(files(i)))
     Next i
     cboDestination.Clear
     cboDestination.Enabled = False
@@ -176,10 +172,10 @@ Private Sub PopulateDestinationFolders()
     cboDestination.Clear
     cboDestination.Enabled = False
 
-    fileName = SortFileForParentDisplay(cboParentFolder.Text)
+    fileName = MailRules.SortFileNameFromParentDisplay(cboParentFolder.Text)
     If Len(fileName) = 0 Then Exit Sub
 
-    parentPath = SortRules.ParentFolderForSortFile(fileName)
+    parentPath = MailRules.ParentFolderForSortFile(fileName)
     If Len(parentPath) = 0 Then Exit Sub
 
     Set folders = FolderHelpers.ListChildFolderNames(parentPath)
@@ -203,12 +199,11 @@ Private Sub btnSave_Click()
     Dim email As String
     Dim destination As String
     Dim displayName As String
-    Dim answer As VbMsgBoxResult
 
     email = Trim$(txtSender.Text)
     displayName = Trim$(txtName.Text)
     parentDisplay = Trim$(cboParentFolder.Text)
-    fileName = SortFileForParentDisplay(parentDisplay)
+    fileName = MailRules.SortFileNameFromParentDisplay(parentDisplay)
     destination = Trim$(cboDestination.Text)
 
     If Len(email) = 0 Then
@@ -229,15 +224,14 @@ Private Sub btnSave_Click()
         Exit Sub
     End If
 
-    parentPath = SortRules.ParentFolderForSortFile(fileName)
+    parentPath = MailRules.ParentFolderForSortFile(fileName)
     destPath = parentPath & "\" & destination
 
     If Not FolderHelpers.FolderExists(destPath) Then
-        answer = MsgBox( _
+        If MsgBox( _
             "The folder """ & destination & """ does not exist under " & parentDisplay & "." & vbCrLf & _
             "Create it?", _
-            vbYesNo + vbQuestion, Me.Caption)
-        If answer <> vbYes Then
+            vbYesNo + vbQuestion, Me.Caption) <> vbYes Then
             cboDestination.SetFocus
             Exit Sub
         End If
@@ -248,7 +242,7 @@ Private Sub btnSave_Click()
         End If
     End If
 
-    If Not SortRules.UpsertSortRule(fileName, email, destination, displayName) Then
+    If Not MailRules.UpsertSortRule(fileName, email, destination, displayName) Then
         MsgBox "Could not update the sort rules. Check that C:\mailOpt\sortRules\ is writable.", _
                vbCritical, Me.Caption
         Exit Sub
@@ -262,31 +256,3 @@ End Sub
 Private Sub btnCancel_Click()
     Me.Hide
 End Sub
-
-' "\\BAE Comms" → "BAE Comms" for the dropdown / messages.
-Private Function DisplayNameForSortFile(ByVal fileName As String) As String
-    Dim parent As String
-    parent = SortRules.ParentFolderForSortFile(fileName)
-    If Left$(parent, 2) = "\\" Then
-        DisplayNameForSortFile = Mid$(parent, 3)
-    Else
-        DisplayNameForSortFile = parent
-    End If
-End Function
-
-Private Function SortFileForParentDisplay(ByVal displayName As String) As String
-    Dim files As Variant
-    Dim i As Long
-
-    displayName = Trim$(displayName)
-    If Left$(displayName, 2) = "\\" Then displayName = Mid$(displayName, 3)
-    If Len(displayName) = 0 Then Exit Function
-
-    files = SortRules.SortFileNames()
-    For i = LBound(files) To UBound(files)
-        If StrComp(DisplayNameForSortFile(CStr(files(i))), displayName, vbTextCompare) = 0 Then
-            SortFileForParentDisplay = CStr(files(i))
-            Exit Function
-        End If
-    Next i
-End Function
