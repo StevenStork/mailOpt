@@ -1,62 +1,48 @@
 # mailOpt
 
-Outlook VBA framework that processes mail when Outlook starts and when new messages arrive. Built to filter mail into folders and organize meeting-related items automatically.
+Outlook VBA framework that processes mail on startup and when new messages arrive. Routes senders into folders from sort text files, handles meeting responses/requests, and includes a form to add sort rules from the open mail.
 
 ## Architecture
 
 | Module | Role |
 |---|---|
-| `ThisOutlookSession` | Wires `Application_Startup`, `Application_NewMailEx`, and `Application_Quit` |
-| `MailProcessor` | Startup scan, on-demand full-mailbox run, per-item pipeline |
-| `MailRules` | Rule evaluation (meeting responses/requests, move, flag) |
-| `SortRules` | File-based sender routing from sort text files |
-| `FolderHelpers` | Resolve / create folders under the Inbox |
+| `ThisOutlookSession` | `Application_Startup`, `Application_NewMailEx`, `Application_Quit` |
+| `MailProcessor` | Startup scan, on-demand full-mailbox sort, per-item pipeline |
+| `MailRules` | Rule evaluation, sort-file load/match/upsert, Add Sort Rule macro |
+| `FolderHelpers` | Resolve / create folders; list child folders for the UI |
+| `frmAddSortRule` | UserForm: map current sender → parent folder → destination |
 
 Flow:
 
-1. Outlook opens → `Application_Startup` → `MailProcessor.Initialize` → scan unread items in all mail folders
-2. New mail arrives → `Application_NewMailEx` → resolve each EntryID → `ProcessOutlookItem`
-3. `MailRules.EvaluateItem` returns an action → move / mark read & move / flag / none
-4. On demand → `MailProcessor.SortAllEmails` processes every item in every mail folder
+1. Outlook opens → `MailProcessor.Initialize` → scan unread items in all mail folders
+2. New mail → `ProcessNewMail` → `EvaluateItem`
+3. Meetings first, then each sort file (conversation **root** sender, then **current** sender)
+4. On demand → `SortAllEmails` or `AddSortRuleFromCurrentMail`
 
 ## Install in Outlook
 
-1. Open Outlook → press `Alt+F11` to open the VBA editor.
-2. Enable macros: **File → Options → Trust Center → Trust Center Settings → Macro Settings** → choose *Notifications for all macros* or *Enable all macros* (prefer signed macros in production).
-3. Import the standard modules from `src/`:
-   - **File → Import File…** → select `MailProcessor.bas`, `MailRules.bas`, `SortRules.bas`, `FolderHelpers.bas`
-4. Set `SORT_RULES_FOLDER` in `SortRules.bas` to the folder containing your sort text files (`sortComms`, `sortProductLines`, `sortTickets`).
-5. Copy your sort files into that folder (tab- or comma-delimited: `Email`, `Destination`, `Name`).
-6. Open **Microsoft Outlook Objects → ThisOutlookSession** and paste the body from `src/ThisOutlookSession.cls` (skip the `VERSION` / `Attribute` header lines — paste from `Option Explicit` downward).
-7. Save the VBA project (`Ctrl+S`). Restart Outlook.
+1. Open Outlook → `Alt+F11`.
+2. Enable macros under **Trust Center → Macro Settings**.
+3. Import from `src/`: `MailProcessor.bas`, `MailRules.bas`, `FolderHelpers.bas`.
+4. Import `frmAddSortRule.frm` (remove any old copy first). Forms build controls in code — no `.frx` needed.
+5. Set `SORT_RULES_FOLDER` in `MailRules.bas` to your sort-files folder.
+6. Copy `sortComms`, `sortTickets`, `sortProductLines` (tab- or comma-delimited: `Email`, `Destination`, `Name`) into that folder.
+7. Paste `ThisOutlookSession.cls` body (from `Option Explicit` down) into **Microsoft Outlook Objects → ThisOutlookSession**.
+8. Save and restart Outlook.
 
-## Adding rules
+If you previously imported `SortRules.bas` or `SortRuleUI.bas`, remove those modules — they are now part of `MailRules.bas`.
 
-Edit matchers / `EvaluateItem` in `MailRules.bas`:
+## Macros
 
-- `MatchesDeleteRule` — return `True` to soft-delete (Deleted Items)
-- `MatchesMoveRule` — set `folderPath` and return `True`
-- `MatchesMarkReadRule` — return `True` to mark unread mail as read
-- Meeting responses and other item types can be handled in `EvaluateItem`
+**`SortAllEmails`** — reload sort files and process every item in every folder (`Alt+F8`, Immediate Window `MailProcessor.SortAllEmails`, or Quick Access Toolbar).
 
-Helpers: `SenderUserNameIs`, `SenderStartsWith`, `SenderContains`, `SubjectContains`, `SenderAddress`.
+**`AddSortRuleFromCurrentMail`** — with a message open or selected:
 
-## Sort all mail on command
-
-Run the **`SortAllEmails`** macro to apply every rule to all mail (read and unread) in every folder. It also reloads your sort text files first.
-
-**From the macro dialog:** press `Alt+F8`, choose `SortAllEmails`, click **Run**.
-
-**From the Immediate Window** (`Ctrl+G`):
+1. Confirm sender email / display name
+2. Choose parent folder (`BAE Comms`, `Tickets`, `Program Groups`)
+3. Pick or type a destination (prompted to create if missing)
+4. Save upserts the matching sort file and reloads rules
 
 ```vba
-MailProcessor.SortAllEmails
+MailRules.AddSortRuleFromCurrentMail
 ```
-
-**Assign to a button:** **File → Options → Quick Access Toolbar** → choose *Macros*, add `SortAllEmails`, then click the button whenever you want a full sort.
-
-`RunAllFilters` and `RunInboxFilters` call the same macro.
-
-## Next steps
-
-- Add more conditions in `MailRules`
