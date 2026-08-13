@@ -16,7 +16,7 @@ Flow:
 
 1. Outlook opens → `MailProcessor.Initialize` → scan unread items in all mail folders
 2. New mail → `ProcessNewMail` → `EvaluateItem`
-3. Meetings first, then each sort file (conversation **root** sender via conversation table, then **current** sender; conversation failures never skip current-sender matching)
+3. Meetings first, then each sort file using the **current** message sender
 4. On demand → `SortAllEmails` or `AddSortRuleFromCurrentMail`
 
 ## Install in Outlook
